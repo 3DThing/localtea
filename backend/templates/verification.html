@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 style="color: #8b4513; border-bottom: 1px dashed #d2b48c; padding-bottom: 10px;">{{ title }}</h2>
+    
+    <p>Приветствуем тебя, Путник!</p>
+    <p>Ветра магии принесли весть о том, что ты желаешь присоединиться к нашему кругу ценителей чая. Чтобы подтвердить свои намерения и закрепить за собой этот почтовый адрес, используй следующий магический код:</p>
+    
+    <div style="background-color: #fdf5e6; padding: 20px; border: 2px solid #d2b48c; border-radius: 4px; margin: 25px 0; text-align: center; position: relative;">
+        <span style="font-size: 1.5em; letter-spacing: 4px; color: #8b0000; font-weight: bold; font-family: 'Courier New', monospace;">{{ token }}</span>
+    </div>
+
+    <p>Или же просто коснись печати ниже, чтобы мгновенно перенестись к завершению ритуала:</p>
+    
+    <div style="text-align: center;">
+        <a href="{{ link }}" class="button">Подтвердить Почту</a>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em; color: #8b7355;">Если же это послание попало к тебе по ошибке злых духов, просто проигнорируй его, и магия рассеется сама собой.</p>
+{% endblock %}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+    <style>
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            line-height: 1.6;
+            color: #4a3b2a;
+            margin: 0;
+            padding: 0;
+            background-color: #fdfbf7;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #fffef0;
+            padding: 40px;
+            border: 2px solid #8b5a2b;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(139, 90, 43, 0.2);
+            background-image: linear-gradient(#fffef0 2px, transparent 2px),
+            linear-gradient(90deg, #fffef0 2px, transparent 2px),
+            linear-gradient(rgba(139, 90, 43, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(139, 90, 43, 0.1) 1px, transparent 1px);
+            background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+            background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px double #8b5a2b;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #5c4033;
+            margin: 0;
+            font-size: 2.5em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.1);
+        }
+        .content {
+            padding: 10px 0;
+            font-size: 1.1em;
+        }
+        .footer {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid #d2b48c;
+            font-size: 0.9em;
+            color: #8b7355;
+            font-style: italic;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #6b8e23;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 25px;
+            font-weight: bold;
+            border: 1px solid #556b2f;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #556b2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ project_name }}</h1>
+        </div>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+        <div class="footer">
+            <p>&copy; {{ current_year }} {{ project_name }}. Все права защищены.</p>
+        </div>
+    </div>
+</body>
+</html>

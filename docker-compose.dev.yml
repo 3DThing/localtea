@@ -1,0 +1,26 @@
+# Docker Compose override for DEVELOPMENT mode
+# 
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up admin_frontend
+#
+# Or set as default:
+#   export COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
+#   docker-compose up admin_frontend
+
+version: '3.3'
+
+services:
+  admin_frontend:
+    build:
+      context: ./admin_frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./admin_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - WATCHPACK_POLLING=true
+      - NEXT_PUBLIC_API_URL=https://apiadmin.localtea.ru/api/v1
+    stdin_open: true
+    tty: true
+    restart: "no"
