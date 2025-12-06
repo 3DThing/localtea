@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from backend.db.session import get_db
@@ -6,7 +6,7 @@ from backend.crud.crud_user import user as crud_user
 from admin_backend.crud import crud_admin_2fa
 from admin_backend.schemas.auth import LoginRequest, LoginResponse, TwoFASetupResponse, TwoFAVerifyRequest, Token
 from admin_backend.core.security import create_pre_auth_token, encrypt_totp_secret, decrypt_totp_secret, create_refresh_token_str
-from backend.core.security import create_access_token, create_csrf_token
+from backend.core.security import create_access_token, create_csrf_token, get_token_hash
 from backend.core.config import settings
 from backend.models.token import Token as DBToken
 from datetime import datetime, timedelta, timezone
@@ -66,7 +66,7 @@ async def setup_2fa(temp_token: str, db: AsyncSession = Depends(get_db)):
     return TwoFASetupResponse(secret=secret, otpauth_url=otpauth_url)
 
 @router.post("/2fa/verify", response_model=Token)
-async def verify_2fa(verify_data: TwoFAVerifyRequest, db: AsyncSession = Depends(get_db)):
+async def verify_2fa(request: Request, verify_data: TwoFAVerifyRequest, db: AsyncSession = Depends(get_db)):
     # Verify temp_token
     try:
         payload = jwt.decode(verify_data.temp_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -94,18 +94,19 @@ async def verify_2fa(verify_data: TwoFAVerifyRequest, db: AsyncSession = Depends
     # Generate access tokens
     access_token = create_access_token(user_id)
     refresh_token_str = create_refresh_token_str()
+    refresh_token_hash = get_token_hash(refresh_token_str)
     csrf_token = create_csrf_token()
     
-    # Save refresh token to DB
+    # Save refresh token hash to DB
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     db_token = DBToken(
         user_id=user_id,
-        refresh_token=refresh_token_str,
+        refresh_token=refresh_token_hash,
         csrf_token=csrf_token,
         expires_at=expires_at,
         created_at=datetime.now(timezone.utc),
-        user_agent="Admin Panel", # TODO: Get from request
-        ip="0.0.0.0" # TODO: Get from request
+        user_agent=request.headers.get("User-Agent", "Admin Panel"),
+        ip=request.client.host if request.client else "0.0.0.0"
     )
     db.add(db_token)
     await db.commit()
@@ -118,14 +119,17 @@ class RefreshRequest(BaseModel):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(refresh_data: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh_token(request: Request, refresh_data: RefreshRequest, db: AsyncSession = Depends(get_db)):
     """Refresh access token using refresh token."""
     from sqlalchemy import select
+    
+    # Hash the incoming token to compare with stored hash
+    refresh_token_hash = get_token_hash(refresh_data.refresh_token)
     
     # Find the refresh token in DB
     result = await db.execute(
         select(DBToken).where(
-            DBToken.refresh_token == refresh_data.refresh_token,
+            DBToken.refresh_token == refresh_token_hash,
             DBToken.revoked == False,
             DBToken.expires_at > datetime.now(timezone.utc)
         )
@@ -147,18 +151,19 @@ async def refresh_token(refresh_data: RefreshRequest, db: AsyncSession = Depends
     # Generate new tokens
     access_token = create_access_token(user.id)
     new_refresh_token_str = create_refresh_token_str()
+    new_refresh_token_hash = get_token_hash(new_refresh_token_str)
     csrf_token = create_csrf_token()
     
-    # Save new refresh token
+    # Save new refresh token hash
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     new_db_token = DBToken(
         user_id=user.id,
-        refresh_token=new_refresh_token_str,
+        refresh_token=new_refresh_token_hash,
         csrf_token=csrf_token,
         expires_at=expires_at,
         created_at=datetime.now(timezone.utc),
-        user_agent="Admin Panel",
-        ip="0.0.0.0"
+        user_agent=request.headers.get("User-Agent", "Admin Panel"),
+        ip=request.client.host if request.client else "0.0.0.0"
     )
     db.add(new_db_token)
     await db.commit()

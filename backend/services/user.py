@@ -4,6 +4,7 @@ from backend.crud import crud_user
 from backend.schemas import user as user_schemas
 from backend.worker import send_email
 from backend.core import security
+from backend.core.config import settings
 from backend.models.user import User
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -41,7 +42,7 @@ class UserService:
             environment={
                 "title": "Добро пожаловать в LocalTea!",
                 "token": user.email_confirm_token,
-                "link": f"http://5.129.219.127:8000/api/v1/user/confirm-email?token={user.email_confirm_token}"
+                "link": f"{settings.API_BASE_URL}/api/v1/user/confirm-email?token={user.email_confirm_token}"
             }
         )
         return user

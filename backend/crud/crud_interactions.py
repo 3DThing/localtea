@@ -121,4 +121,18 @@ class CRUDInteractions:
         await db.refresh(db_obj)
         return db_obj
 
+    async def get_comment(self, db: AsyncSession, *, comment_id: int) -> Optional[Comment]:
+        result = await db.execute(select(Comment).where(Comment.id == comment_id))
+        return result.scalars().first()
+
+    async def delete_comment(self, db: AsyncSession, *, comment: Comment):
+        # Decrement counter
+        if comment.article_id:
+            await db.execute(update(Article).where(Article.id == comment.article_id).values(comments_count=Article.comments_count - 1))
+        elif comment.product_id:
+            await db.execute(update(Product).where(Product.id == comment.product_id).values(comments_count=Product.comments_count - 1))
+        
+        await db.delete(comment)
+        await db.commit()
+
 interactions = CRUDInteractions()

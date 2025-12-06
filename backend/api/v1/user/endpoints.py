@@ -70,14 +70,14 @@ async def login_access_token(
         httponly=True,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         samesite="lax",
-        secure=False # Set to True in prod
+        secure=not settings.DEBUG
     )
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
         httponly=False,
         samesite="lax",
-        secure=False
+        secure=not settings.DEBUG
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -120,14 +120,14 @@ async def login(
         httponly=True,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         samesite="lax",
-        secure=False # Set to True in prod
+        secure=not settings.DEBUG
     )
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
         httponly=False,
         samesite="lax",
-        secure=False
+        secure=not settings.DEBUG
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -223,14 +223,14 @@ async def refresh_token(
         httponly=True,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         samesite="lax",
-        secure=False
+        secure=not settings.DEBUG
     )
     response.set_cookie(
         key="csrf_token",
         value=new_csrf_token,
         httponly=False,
         samesite="lax",
-        secure=False
+        secure=not settings.DEBUG
     )
     
     return {"access_token": new_access_token, "token_type": "bearer"}

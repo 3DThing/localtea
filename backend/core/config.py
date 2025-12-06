@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     TOTP_ENCRYPTION_KEY: str
 
+    # Base URLs for email links and frontend
+    BASE_URL: str = "https://localtea.ru"
+    API_BASE_URL: str = "https://api.localtea.ru"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
