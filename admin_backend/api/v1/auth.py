@@ -94,10 +94,11 @@ async def verify_2fa(request: Request, verify_data: TwoFAVerifyRequest, db: Asyn
     # Generate access tokens
     access_token = create_access_token(user_id)
     refresh_token_str = create_refresh_token_str()
+    # Hash the refresh token before storing to prevent token exposure in case of database compromise
     refresh_token_hash = get_token_hash(refresh_token_str)
     csrf_token = create_csrf_token()
     
-    # Save refresh token hash to DB
+    # Save refresh token hash to DB (not the plain token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     db_token = DBToken(
         user_id=user_id,
@@ -151,10 +152,11 @@ async def refresh_token(request: Request, refresh_data: RefreshRequest, db: Asyn
     # Generate new tokens
     access_token = create_access_token(user.id)
     new_refresh_token_str = create_refresh_token_str()
+    # Hash the refresh token before storing to prevent token exposure in case of database compromise
     new_refresh_token_hash = get_token_hash(new_refresh_token_str)
     csrf_token = create_csrf_token()
     
-    # Save new refresh token hash
+    # Save new refresh token hash (not the plain token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     new_db_token = DBToken(
         user_id=user.id,
