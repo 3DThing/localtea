@@ -1,0 +1,477 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import {
+  Container,
+  Grid,
+  Box,
+  Image,
+  Title,
+  Text,
+  Group,
+  Stack,
+  Button,
+  Badge,
+  NumberInput,
+  Card,
+  Divider,
+  ActionIcon,
+  Tabs,
+  Skeleton,
+  Textarea,
+  Avatar,
+} from '@mantine/core';
+import {
+  IconHeart,
+  IconShoppingCart,
+  IconEye,
+  IconMessage,
+  IconStar,
+  IconMinus,
+  IconPlus,
+  IconArrowLeft,
+} from '@tabler/icons-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams, useRouter } from 'next/navigation';
+import { notifications } from '@mantine/notifications';
+import { catalogApi, interactionsApi } from '@/lib/api';
+import { useCartStore, useAuthStore } from '@/store';
+import Link from 'next/link';
+
+export default function ProductDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const slug = params.slug as string;
+
+  const [selectedSku, setSelectedSku] = useState<any>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [comment, setComment] = useState('');
+
+  const { addItem, isLoading: cartLoading } = useCartStore();
+  const { user } = useAuthStore();
+
+  const { data: productData, isLoading } = useQuery({
+    queryKey: ['product', slug],
+    queryFn: () => catalogApi.getProduct(slug),
+  });
+
+  const { data: commentsData, refetch: refetchComments } = useQuery({
+    queryKey: ['comments', 'product', productData?.data?.id],
+    queryFn: () => interactionsApi.getComments({ product_id: productData?.data?.id }),
+    enabled: !!productData?.data?.id,
+  });
+
+  const product = productData?.data;
+  const comments = commentsData?.data || [];
+
+  // Select first SKU by default
+  useEffect(() => {
+    if (product?.skus?.length && !selectedSku) {
+      setSelectedSku(product.skus[0]);
+    }
+  }, [product, selectedSku]);
+
+  // Register view
+  useEffect(() => {
+    if (product?.id) {
+      interactionsApi.registerView({ product_id: product.id }).catch(() => {});
+    }
+  }, [product?.id]);
+
+  const likeMutation = useMutation({
+    mutationFn: () => interactionsApi.toggleLike({ product_id: product.id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product', slug] });
+    },
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: (content: string) => interactionsApi.createComment({
+      content,
+      product_id: product.id,
+    }),
+    onSuccess: () => {
+      setComment('');
+      refetchComments();
+      notifications.show({
+        title: 'Комментарий добавлен',
+        message: 'Ваш комментарий успешно опубликован',
+        color: 'green',
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Войдите в аккаунт, чтобы оставить комментарий',
+        color: 'red',
+      });
+    },
+  });
+
+  const handleAddToCart = async () => {
+    if (!selectedSku) return;
+
+    try {
+      await addItem(selectedSku.id, quantity);
+      notifications.show({
+        title: 'Добавлено в корзину',
+        message: `${product.title} (${selectedSku.weight}г) добавлен в корзину`,
+        color: 'green',
+      });
+    } catch (error) {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Не удалось добавить товар в корзину',
+        color: 'red',
+      });
+    }
+  };
+
+  const formatPrice = (cents: number) => {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: 'RUB',
+      minimumFractionDigits: 0,
+    }).format(cents / 100);
+  };
+
+  if (isLoading) {
+    return (
+      <Container size="xl" py="xl">
+        <Grid>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Skeleton height={500} radius="lg" />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Stack gap="md">
+              <Skeleton height={40} width="60%" />
+              <Skeleton height={20} width="40%" />
+              <Skeleton height={100} />
+              <Skeleton height={50} />
+              <Skeleton height={50} />
+            </Stack>
+          </Grid.Col>
+        </Grid>
+      </Container>
+    );
+  }
+
+  if (!product) {
+    return (
+      <Container size="xl" py="xl" ta="center">
+        <Title order={2} mb="md">Товар не найден</Title>
+        <Button component={Link} href="/catalog">Вернуться в каталог</Button>
+      </Container>
+    );
+  }
+
+  const mainImage = product.images?.find((img: any) => img.is_main)?.url
+    || product.images?.[0]?.url
+    || 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600';
+
+  return (
+    <Container size="xl" py="xl">
+      {/* Back Button */}
+      <Button
+        variant="subtle"
+        color="gray"
+        leftSection={<IconArrowLeft size={16} />}
+        mb="xl"
+        onClick={() => router.back()}
+      >
+        Назад
+      </Button>
+
+      <Grid gutter="xl">
+        {/* Image Section */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Card
+            p={0}
+            radius="lg"
+            style={{
+              overflow: 'hidden',
+              background: 'rgba(26, 27, 30, 0.8)',
+              border: '1px solid rgba(117, 61, 218, 0.2)',
+            }}
+          >
+            <Image
+              src={mainImage}
+              alt={product.title}
+              h={500}
+              style={{ objectFit: 'cover' }}
+            />
+          </Card>
+
+          {/* Thumbnails */}
+          {product.images?.length > 1 && (
+            <Group gap="xs" mt="md">
+              {product.images.map((img: any) => (
+                <Image
+                  key={img.id}
+                  src={img.url}
+                  alt=""
+                  w={80}
+                  h={80}
+                  radius="md"
+                  style={{
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                    border: '2px solid rgba(117, 61, 218, 0.3)',
+                  }}
+                />
+              ))}
+            </Group>
+          )}
+        </Grid.Col>
+
+        {/* Product Info */}
+        <Grid.Col span={{ base: 12, md: 6 }}>
+          <Stack gap="lg">
+            {/* Category & Type */}
+            <Group gap="xs">
+              <Badge variant="light" color="violet">
+                {product.category?.name || 'Чай'}
+              </Badge>
+              {product.tea_type && (
+                <Badge variant="outline" color="gray">
+                  {product.tea_type}
+                </Badge>
+              )}
+            </Group>
+
+            {/* Title */}
+            <Title order={1}>{product.title}</Title>
+
+            {/* Stats */}
+            <Group gap="lg">
+              <Group gap={4}>
+                <IconEye size={18} style={{ opacity: 0.5 }} />
+                <Text size="sm" c="dimmed">{product.views_count || 0}</Text>
+              </Group>
+              <Group gap={4}>
+                <IconHeart
+                  size={18}
+                  style={{
+                    opacity: 0.5,
+                    cursor: 'pointer',
+                    color: product.is_liked ? '#ff6b6b' : undefined,
+                  }}
+                  onClick={() => likeMutation.mutate()}
+                />
+                <Text size="sm" c="dimmed">{product.likes_count || 0}</Text>
+              </Group>
+              <Group gap={4}>
+                <IconMessage size={18} style={{ opacity: 0.5 }} />
+                <Text size="sm" c="dimmed">{product.comments_count || 0}</Text>
+              </Group>
+            </Group>
+
+            {/* Description */}
+            <Text c="dimmed" style={{ lineHeight: 1.8 }}>
+              {product.description}
+            </Text>
+
+            <Divider my="md" color="dark.5" />
+
+            {/* SKU Selection */}
+            <Box>
+              <Text size="sm" fw={600} mb="xs">Выберите объём:</Text>
+              <Group gap="xs">
+                {product.skus?.map((sku: any) => (
+                  <Button
+                    key={sku.id}
+                    variant={selectedSku?.id === sku.id ? 'filled' : 'outline'}
+                    color="violet"
+                    onClick={() => setSelectedSku(sku)}
+                    disabled={!sku.is_active || sku.quantity === 0}
+                  >
+                    {sku.weight}г
+                    {sku.quantity === 0 && ' (нет в наличии)'}
+                  </Button>
+                ))}
+              </Group>
+            </Box>
+
+            {/* Price */}
+            {selectedSku && (
+              <Box>
+                <Group gap="md" align="baseline">
+                  <Text size="xl" fw={700} c="violet">
+                    {formatPrice(selectedSku.price_cents - (selectedSku.discount_cents || 0))}
+                  </Text>
+                  {selectedSku.discount_cents > 0 && (
+                    <Text size="md" c="dimmed" td="line-through">
+                      {formatPrice(selectedSku.price_cents)}
+                    </Text>
+                  )}
+                </Group>
+                <Text size="xs" c="dimmed" mt={4}>
+                  В наличии: {selectedSku.quantity} шт.
+                </Text>
+              </Box>
+            )}
+
+            {/* Quantity & Add to Cart */}
+            <Group gap="md">
+              <Group gap={0}>
+                <ActionIcon
+                  variant="light"
+                  color="gray"
+                  size="lg"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                >
+                  <IconMinus size={16} />
+                </ActionIcon>
+                <NumberInput
+                  value={quantity}
+                  onChange={(val) => setQuantity(typeof val === 'number' ? val : 1)}
+                  min={1}
+                  max={selectedSku?.quantity || 99}
+                  hideControls
+                  styles={{
+                    input: { width: 60, textAlign: 'center' },
+                  }}
+                />
+                <ActionIcon
+                  variant="light"
+                  color="gray"
+                  size="lg"
+                  onClick={() => setQuantity(Math.min(selectedSku?.quantity || 99, quantity + 1))}
+                >
+                  <IconPlus size={16} />
+                </ActionIcon>
+              </Group>
+
+              <Button
+                size="lg"
+                variant="gradient"
+                gradient={{ from: 'violet', to: 'grape' }}
+                leftSection={<IconShoppingCart size={20} />}
+                onClick={handleAddToCart}
+                loading={cartLoading}
+                disabled={!selectedSku || selectedSku.quantity === 0}
+                style={{ flex: 1 }}
+              >
+                Добавить в корзину
+              </Button>
+
+              <ActionIcon
+                size="lg"
+                variant="light"
+                color={product.is_liked ? 'red' : 'gray'}
+                onClick={() => likeMutation.mutate()}
+              >
+                <IconHeart size={20} fill={product.is_liked ? '#ff6b6b' : 'none'} />
+              </ActionIcon>
+            </Group>
+          </Stack>
+        </Grid.Col>
+      </Grid>
+
+      {/* Tabs Section */}
+      <Box mt={60}>
+        <Tabs defaultValue="description" color="violet">
+          <Tabs.List>
+            <Tabs.Tab value="description">Описание</Tabs.Tab>
+            <Tabs.Tab value="brewing">Способ заваривания</Tabs.Tab>
+            <Tabs.Tab value="comments">
+              Отзывы ({product.comments_count || 0})
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="description" pt="xl">
+            <Text style={{ lineHeight: 2, whiteSpace: 'pre-wrap' }}>
+              {product.lore_description || product.description || 'Описание скоро появится...'}
+            </Text>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="brewing" pt="xl">
+            {product.brewing_guide ? (
+              <Stack gap="md">
+                {Object.entries(product.brewing_guide).map(([key, value]) => (
+                  <Group key={key} gap="md">
+                    <Text fw={600} tt="capitalize">{key}:</Text>
+                    <Text c="dimmed">{String(value)}</Text>
+                  </Group>
+                ))}
+              </Stack>
+            ) : (
+              <Text c="dimmed">Информация о заваривании скоро появится...</Text>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="comments" pt="xl">
+            <Stack gap="xl">
+              {/* Comment Form */}
+              <Card
+                p="lg"
+                radius="md"
+                style={{
+                  background: 'rgba(26, 27, 30, 0.8)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                }}
+              >
+                <Stack gap="md">
+                  <Text fw={600}>Оставить отзыв</Text>
+                  <Textarea
+                    placeholder={user ? 'Напишите ваш отзыв...' : 'Войдите, чтобы оставить отзыв'}
+                    value={comment}
+                    onChange={(e) => setComment(e.currentTarget.value)}
+                    minRows={3}
+                    disabled={!user}
+                  />
+                  <Group justify="flex-end">
+                    <Button
+                      variant="gradient"
+                      gradient={{ from: 'violet', to: 'grape' }}
+                      onClick={() => commentMutation.mutate(comment)}
+                      loading={commentMutation.isPending}
+                      disabled={!user || !comment.trim()}
+                    >
+                      Опубликовать
+                    </Button>
+                  </Group>
+                </Stack>
+              </Card>
+
+              {/* Comments List */}
+              {comments.length > 0 ? (
+                <Stack gap="md">
+                  {comments.map((c: any) => (
+                    <Card
+                      key={c.id}
+                      p="lg"
+                      radius="md"
+                      style={{
+                        background: 'rgba(26, 27, 30, 0.5)',
+                        border: '1px solid rgba(255, 255, 255, 0.03)',
+                      }}
+                    >
+                      <Group gap="md" mb="sm">
+                        <Avatar radius="xl" size="md">
+                          {c.user?.username?.charAt(0).toUpperCase() || 'U'}
+                        </Avatar>
+                        <Box>
+                          <Text fw={600} size="sm">{c.user?.username || 'Пользователь'}</Text>
+                          <Text size="xs" c="dimmed">
+                            {new Date(c.created_at).toLocaleDateString('ru-RU')}
+                          </Text>
+                        </Box>
+                      </Group>
+                      <Text style={{ lineHeight: 1.8 }}>{c.content}</Text>
+                    </Card>
+                  ))}
+                </Stack>
+              ) : (
+                <Text c="dimmed" ta="center" py="xl">
+                  Пока нет отзывов. Будьте первым!
+                </Text>
+              )}
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
+      </Box>
+    </Container>
+  );
+}
