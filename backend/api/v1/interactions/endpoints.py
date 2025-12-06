@@ -54,10 +54,18 @@ async def delete_comment(
     current_user: User = Depends(deps.get_current_user),
 ):
     """
-    Delete comment.
+    Delete comment. Only comment author or superuser can delete.
     """
-    # TODO: Implement permission check (author or admin)
-    pass
+    comment = await crud_interactions.interactions.get_comment(db, comment_id=comment_id)
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Check permission: author or admin
+    if comment.user_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+    
+    await crud_interactions.interactions.delete_comment(db, comment=comment)
+    return None
 
 @router.post("/likes/", response_model=schemas.LikeResponse)
 @limiter.limit("10/minute")
