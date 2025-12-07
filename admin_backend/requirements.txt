@@ -1,4 +1,4 @@
 pyotp
 cryptography
-Pillow
+Pillow>=10.3.0
 passlib[argon2]
