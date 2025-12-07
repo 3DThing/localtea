@@ -31,6 +31,39 @@ This document provides a comprehensive plan for integrating Yookassa payment sys
 
 Yookassa sends webhooks with a signature header to verify authenticity.
 
+﻿# Интеграция Yookassa — план
+
+## Обзор
+
+Документ описывает план интеграции платёжного сервиса Yookassa в платформу LocalTea.
+
+---
+
+## Текущий статус
+
+✅ Реализовано:
+- Базовая структура сервиса Yookassa (`backend/services/payment/yookassa.py`)
+- Запросы на создание платежа (API)
+- Вебхук-эндпоинт (`/api/v1/webhooks/payment/yookassa`)
+- Модель заказа с отслеживанием платежей
+
+⚠️ Недостаёт / нужно доработать:
+- Проверка подписи вебхуков (КРИТИЧНО)
+- Полная обработка ошибок
+- Синхронизация статусов платежей
+- Поддержка возвратов (refund)
+- Тестирование в продакшн‑окружении
+
+---
+
+## План реализации
+
+### Фаза 1: Безопасность (1–2 дня) — КРИТИЧНО
+
+#### 1.1 Проверка подписи вебхуков
+
+Yookassa присылает вебхуки с подписью в заголовке — нужно проверять её, чтобы исключить фальсификацию.
+
 ```python
 # backend/services/payment/yookassa.py
 
@@ -39,26 +72,18 @@ import hashlib
 
 def verify_webhook_signature(body: bytes, signature: str) -> bool:
     """
-    Verify Yookassa webhook signature.
-    
-    Args:
-        body: Raw request body bytes
-        signature: Signature from X-Yoomoney-Signature header
-    
-    Returns:
-        True if signature is valid
+    Проверка подписи вебхука Yookassa.
     """
     if not settings.YOOKASSA_SECRET_KEY:
-        raise ValueError("YOOKASSA_SECRET_KEY not configured")
-    
-    expected_signature = hashlib.sha256(
-        body + settings.YOOKASSA_SECRET_KEY.encode()
-    ).hexdigest()
-    
+        raise ValueError("YOOKASSA_SECRET_KEY не настроен")
+
+    expected_signature = hashlib.sha256(body + settings.YOOKASSA_SECRET_KEY.encode()).hexdigest()
     return hmac.compare_digest(signature, expected_signature)
 ```
 
-#### 1.2 Update Webhook Endpoint
+#### 1.2 Обновление эндпоинта вебхука
+
+Добавить проверку подписи, логирование и безопасную обработку ошибок.
 
 ```python
 # backend/api/v1/webhooks/endpoints.py
@@ -78,60 +103,38 @@ async def yookassa_webhook(
     request: Request,
     x_yoomoney_signature: str = Header(None),
     db: AsyncSession = Depends(deps.get_db)
-) -> dict:
-    """
-    Webhook for Yookassa payment status updates.
-    
-    Security:
-    - Verifies webhook signature
-    - Logs all webhook events
-    - Validates payment data
-    """
-    # Get raw body for signature verification
+):
     body = await request.body()
-    
-    # Verify signature
+
     if not x_yoomoney_signature:
-        logger.error("Webhook received without signature")
+        logger.error("Вебхук получен без подписи")
         raise HTTPException(status_code=403, detail="Missing signature")
-    
+
     if not verify_webhook_signature(body, x_yoomoney_signature):
-        logger.error(f"Invalid webhook signature: {x_yoomoney_signature[:20]}...")
+        logger.error("Неверная подпись вебхука")
         raise HTTPException(status_code=403, detail="Invalid signature")
-    
-    # Parse event
+
     try:
         event = await request.json()
     except Exception as e:
-        logger.error(f"Failed to parse webhook JSON: {e}")
+        logger.error(f"Не удалось распарсить JSON вебхука: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
-    # Log event (without sensitive data)
-    logger.info(
-        f"Yookassa webhook received: "
-        f"event_type={event.get('event')}, "
-        f"payment_id={event.get('object', {}).get('id')}"
-    )
-    
-    # Process webhook
+
     try:
         await order_service.process_payment_webhook(db, event)
     except Exception as e:
-        logger.error(f"Failed to process webhook: {e}", exc_info=True)
-        # Return 200 to prevent Yookassa from retrying
-        # Log error for manual investigation
+        logger.exception("Ошибка обработки вебхука")
         return {"status": "error_logged"}
-    
+
     return {"status": "ok"}
 ```
 
-#### 1.3 IP Whitelist (Optional but Recommended)
+#### 1.3 Рекомендация: белый список IP (опционально)
 
-Yookassa sends webhooks from specific IP ranges.
+Yookassa использует ограниченные IP‑диапазоны — дополнительная проверка IP повысит безопасность.
 
 ```python
 # backend/core/config.py
-
 YOOKASSA_WEBHOOK_IPS: list[str] = [
     "185.71.76.0/27",
     "185.71.77.0/27",
@@ -140,40 +143,26 @@ YOOKASSA_WEBHOOK_IPS: list[str] = [
 ]
 
 # backend/api/v1/webhooks/endpoints.py
-
 from ipaddress import ip_address, ip_network
 
 def is_yookassa_ip(client_ip: str) -> bool:
-    """Check if request comes from Yookassa IP range"""
     try:
         ip = ip_address(client_ip)
         for network in settings.YOOKASSA_WEBHOOK_IPS:
             if ip in ip_network(network):
                 return True
-        return False
     except ValueError:
         return False
+    return False
 
-@router.post("/payment/yookassa")
-async def yookassa_webhook(
-    request: Request,
-    x_yoomoney_signature: str = Header(None),
-    db: AsyncSession = Depends(deps.get_db)
-):
-    # Verify IP
-    client_ip = request.client.host
-    if not is_yookassa_ip(client_ip):
-        logger.warning(f"Webhook from unauthorized IP: {client_ip}")
-        raise HTTPException(status_code=403, detail="Unauthorized IP")
-    
-    # ... rest of the code
+# и вызывать is_yookassa_ip(request.client.host) при необходимости
 ```
 
 ---
 
-### Phase 2: Complete Payment Flow (2-3 days)
+### Фаза 2: Полный платёжный поток (2–3 дня)
 
-#### 2.1 Payment Webhook Processing
+#### 2.1 Обработка вебхуков
 
 ```python
 # backend/services/order.py
@@ -183,442 +172,120 @@ from backend.services.email import send_order_confirmation_email
 from typing import Dict, Any
 
 class OrderService:
-    async def process_payment_webhook(
-        self, 
-        db: AsyncSession, 
-        event: Dict[str, Any]
-    ) -> None:
-        """
-        Process Yookassa payment webhook.
-        
-        Event structure:
-        {
-            "event": "payment.succeeded" | "payment.canceled" | "payment.waiting_for_capture",
-            "object": {
-                "id": "payment_id",
-                "status": "succeeded",
-                "amount": {"value": "100.00", "currency": "RUB"},
-                "metadata": {"order_id": "123"},
-                ...
-            }
-        }
-        """
+    async def process_payment_webhook(self, db: AsyncSession, event: Dict[str, Any]) -> None:
         event_type = event.get("event")
         payment_data = event.get("object", {})
         payment_id = payment_data.get("id")
-        
+
         if not payment_id:
-            raise ValueError("Missing payment_id in webhook")
-        
-        # Find payment in database
+            raise ValueError("В вебхуке отсутствует payment_id")
+
         stmt = select(Payment).where(Payment.payment_id == payment_id)
         result = await db.execute(stmt)
         payment = result.scalar_one_or_none()
-        
+
         if not payment:
-            # First webhook - create payment record
-            order_id = int(payment_data.get("metadata", {}).get("order_id"))
-            if not order_id:
-                raise ValueError("Missing order_id in metadata")
-            
-            payment = Payment(
-                order_id=order_id,
-                payment_id=payment_id,
-                amount_cents=int(float(payment_data["amount"]["value"]) * 100),
-                status=PaymentStatus.PENDING,
-                provider="yookassa",
-                provider_data=payment_data
-            )
-            db.add(payment)
-        
-        # Update payment status based on event
-        old_status = payment.status
-        
+            # Создать запись о платеже при первом вебхуке
+            # db.add(payment)
+            pass
+
+        old_status = payment.status if payment else None
+
         if event_type == "payment.succeeded":
             payment.status = PaymentStatus.SUCCEEDED
-            payment.paid_at = datetime.now(timezone.utc)
-            
-            # Update order status
-            order = await db.get(Order, payment.order_id)
-            if order:
-                order.status = OrderStatus.PAID
-                order.paid_at = datetime.now(timezone.utc)
-                
-                # Send confirmation email
-                await send_order_confirmation_email(order)
-        
         elif event_type == "payment.canceled":
             payment.status = PaymentStatus.CANCELED
-            
-            # Update order status
-            order = await db.get(Order, payment.order_id)
-            if order:
-                order.status = OrderStatus.CANCELED
-                
-                # Release reserved stock
-                await self.release_order_stock(db, order)
-        
         elif event_type == "payment.waiting_for_capture":
             payment.status = PaymentStatus.PENDING
-        
-        # Store full webhook data
+
         payment.provider_data = payment_data
-        
         await db.commit()
-        
-        # Log status change
-        logger.info(
-            f"Payment {payment_id} status changed: "
-            f"{old_status} -> {payment.status} for order {payment.order_id}"
-        )
+
+        logger.info(f"Payment {payment_id} status changed: {old_status} -> {payment.status}")
 ```
 
-#### 2.2 Payment Creation During Checkout
+#### 2.2 Создание платежа при оформлении заказа
 
 ```python
 # backend/services/order.py
 
-async def initiate_payment(
-    self,
-    db: AsyncSession,
-    order_id: int
-) -> Dict[str, Any]:
-    """
-    Create payment in Yookassa and return payment URL.
-    
-    Returns:
-        {
-            "payment_id": "...",
-            "payment_url": "https://yookassa.ru/checkout/...",
-            "status": "pending"
-        }
-    """
-    # Get order
+async def initiate_payment(self, db: AsyncSession, order_id: int) -> Dict[str, Any]:
     order = await db.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     if order.status != OrderStatus.AWAITING_PAYMENT:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Order is in {order.status} status, cannot initiate payment"
-        )
-    
-    # Create payment in Yookassa
-    payment_data = await payment_service.create_payment(
-        order=order,
-        description=f"Заказ #{order.id} на localtea.ru"
-    )
-    
-    # Store payment info
+        raise HTTPException(status_code=400, detail="Order is not awaiting payment")
+
+    payment_data = await payment_service.create_payment(order, description=f"Заказ #{order.id} на localtea.ru")
+
     payment = Payment(
         order_id=order.id,
         payment_id=payment_data["payment_id"],
         amount_cents=order.total_amount_cents,
         status=PaymentStatus.PENDING,
         provider="yookassa",
-        provider_data=payment_data
+        provider_data=payment_data,
     )
     db.add(payment)
     await db.commit()
-    
-    return {
-        "payment_id": payment_data["payment_id"],
-        "payment_url": payment_data["payment_url"],
-        "status": "pending"
-    }
+
+    return {"payment_id": payment_data["payment_id"], "payment_url": payment_data["payment_url"], "status": "pending"}
 ```
 
-#### 2.3 Frontend Integration
+#### 2.3 Фронтенд интеграция
 
-```typescript
-// user_frontend/src/app/checkout/payment/page.tsx
-
-'use client';
-
-import { useState } from 'react';
-import { Button, Text, Loader } from '@mantine/core';
-import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-
-export default function PaymentPage({ params }: { params: { orderId: string } }) {
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  
-  const handlePayment = async () => {
-    setLoading(true);
-    
-    try {
-      // Initiate payment
-      const response = await api.post(`/api/v1/orders/${params.orderId}/pay`);
-      const { payment_url } = response.data;
-      
-      // Redirect to Yookassa
-      window.location.href = payment_url;
-    } catch (error) {
-      console.error('Payment initiation failed:', error);
-      setLoading(false);
-    }
-  };
-  
-  return (
-    <div>
-      <Text size="xl" fw={700} mb="md">Оплата заказа</Text>
-      
-      <Button
-        size="lg"
-        onClick={handlePayment}
-        loading={loading}
-        disabled={loading}
-      >
-        {loading ? <Loader size="sm" /> : 'Перейти к оплате'}
-      </Button>
-    </div>
-  );
-}
-```
-
-```typescript
-// user_frontend/src/app/payment/success/page.tsx
-
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Title, Text, Button, Stack } from '@mantine/core';
-
-export default function PaymentSuccessPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
-  
-  return (
-    <Stack align="center" gap="lg" mt={60}>
-      <Title order={1}>✅ Оплата успешна!</Title>
-      <Text size="lg">Ваш заказ #{orderId} оплачен</Text>
-      <Text c="dimmed">
-        Мы отправили подтверждение на вашу электронную почту
-      </Text>
-      
-      <Button
-        onClick={() => router.push(`/orders/${orderId}`)}
-        size="lg"
-      >
-        Посмотреть заказ
-      </Button>
-    </Stack>
-  );
-}
-```
+Клиентская часть должна инициировать платёж и перенаправлять пользователя на URL подтверждения Yookassa, а затем обрабатывать результат (redirection или вебхук).
 
 ---
 
-### Phase 3: Error Handling & Edge Cases (1-2 days)
+### Фаза 3: Обработка ошибок и крайних случаев (1–2 дня)
 
-#### 3.1 Payment Expiry
+#### 3.1 Истечение времени оплаты
 
-```python
-# backend/worker.py
+План: задача Celery, которая отменяет просроченные неоплаченные заказы (например, старше 30 минут).
 
-@celery_app.task
-def check_expired_payments():
-    """
-    Check for expired payments and cancel orders.
-    Run every 5 minutes.
-    """
-    with sync_session() as db:
-        # Find orders with expired payments (older than 30 min)
-        expiry_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-        
-        stmt = select(Order).where(
-            Order.status == OrderStatus.AWAITING_PAYMENT,
-            Order.created_at < expiry_time
-        )
-        result = db.execute(stmt)
-        expired_orders = result.scalars().all()
-        
-        for order in expired_orders:
-            # Cancel order
-            order.status = OrderStatus.EXPIRED
-            
-            # Release stock
-            for item in order.items:
-                sku = db.get(SKU, item.sku_id)
-                if sku:
-                    sku.reserved_quantity -= item.quantity
-                    sku.quantity += item.quantity
-            
-            db.commit()
-            
-            # Log
-            logger.info(f"Expired order {order.id} cancelled and stock released")
-```
+#### 3.2 Идемпотентность
 
-#### 3.2 Idempotency
-
-Yookassa may send duplicate webhooks. Ensure idempotency:
-
-```python
-# Use transaction isolation level
-async def process_payment_webhook(self, db: AsyncSession, event: Dict):
-    # Use SELECT FOR UPDATE to prevent race conditions
-    stmt = (
-        select(Payment)
-        .where(Payment.payment_id == payment_id)
-        .with_for_update()
-    )
-    result = await db.execute(stmt)
-    payment = result.scalar_one_or_none()
-    
-    # Check if already processed
-    if payment and payment.status == PaymentStatus.SUCCEEDED:
-        logger.info(f"Payment {payment_id} already processed, skipping")
-        return
-    
-    # Process...
-```
+Использовать SELECT FOR UPDATE и проверять текущий статус платежа, чтобы безопасно обрабатывать повторные вебхуки.
 
 ---
 
-### Phase 4: Testing (2-3 days)
+### Фаза 4: Тестирование (2–3 дня)
 
-#### 4.1 Unit Tests
-
-```python
-# tests/test_payment.py
-
-import pytest
-from unittest.mock import Mock, patch
-from backend.services.payment.yookassa import payment_service, verify_webhook_signature
-
-def test_verify_webhook_signature_valid():
-    body = b'{"event":"payment.succeeded"}'
-    # Generate valid signature
-    import hashlib, hmac
-    secret = "test_secret"
-    signature = hashlib.sha256(body + secret.encode()).hexdigest()
-    
-    with patch('backend.core.config.settings.YOOKASSA_SECRET_KEY', secret):
-        assert verify_webhook_signature(body, signature) is True
-
-def test_verify_webhook_signature_invalid():
-    body = b'{"event":"payment.succeeded"}'
-    signature = "invalid_signature"
-    
-    assert verify_webhook_signature(body, signature) is False
-
-@pytest.mark.asyncio
-async def test_create_payment():
-    order = Mock(id=123, total_amount_cents=10000)
-    
-    with patch('httpx.AsyncClient') as mock_client:
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": "payment_123",
-            "status": "pending",
-            "confirmation": {"confirmation_url": "https://yookassa.ru/..."}
-        }
-        mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
-        
-        result = await payment_service.create_payment(order, "Test payment")
-        
-        assert result["payment_id"] == "payment_123"
-        assert "payment_url" in result
-```
-
-#### 4.2 Integration Tests
-
-```python
-# tests/test_payment_flow.py
-
-@pytest.mark.asyncio
-async def test_complete_payment_flow(client, db_session):
-    # 1. Create order
-    response = await client.post("/api/v1/orders/checkout", json={
-        "shipping_address": {...},
-        "contact_info": {...}
-    })
-    order_id = response.json()["id"]
-    
-    # 2. Initiate payment
-    response = await client.post(f"/api/v1/orders/{order_id}/pay")
-    assert response.status_code == 200
-    payment_url = response.json()["payment_url"]
-    assert "yookassa.ru" in payment_url
-    
-    # 3. Simulate webhook
-    webhook_data = {
-        "event": "payment.succeeded",
-        "object": {
-            "id": "test_payment_id",
-            "status": "succeeded",
-            "amount": {"value": "100.00", "currency": "RUB"},
-            "metadata": {"order_id": str(order_id)}
-        }
-    }
-    
-    # Generate valid signature
-    body = json.dumps(webhook_data).encode()
-    signature = hashlib.sha256(body + settings.YOOKASSA_SECRET_KEY.encode()).hexdigest()
-    
-    response = await client.post(
-        "/api/v1/webhooks/payment/yookassa",
-        json=webhook_data,
-        headers={"X-Yoomoney-Signature": signature}
-    )
-    assert response.status_code == 200
-    
-    # 4. Verify order status
-    order = await db_session.get(Order, order_id)
-    assert order.status == OrderStatus.PAID
-```
-
-#### 4.3 Manual Testing Checklist
-
-- [ ] Create order and initiate payment
-- [ ] Complete payment on Yookassa test environment
-- [ ] Verify webhook is received and processed
-- [ ] Check order status changes to PAID
-- [ ] Verify confirmation email is sent
-- [ ] Test payment cancellation
-- [ ] Test payment expiry
-- [ ] Test duplicate webhook (idempotency)
-- [ ] Test invalid signature rejection
-- [ ] Test payment from unauthorized IP
+Юнит‑тесты и интеграционные тесты должны покрывать:
+- проверку подписи вебхуков
+- создание платежа
+- обработку вебхуков (успешный платёж, отмена, ожидание захвата)
+- истечение времени и отмену
 
 ---
 
-### Phase 5: Production Deployment
+## Продакшн‑деплой
 
-#### 5.1 Environment Variables
+### Переменные окружения (пример)
 
 ```env
-# Production .env
-YOOKASSA_SHOP_ID=123456
+YOOKASSA_SHOP_ID=your_shop_id
 YOOKASSA_SECRET_KEY=live_xxx...
 YOOKASSA_RETURN_URL=https://localtea.ru/payment/success
 ```
 
-#### 5.2 Monitoring
+### Мониторинг и логирование
 
-```python
-# Add metrics for payment tracking
-from prometheus_client import Counter, Histogram
+Рекомендовано добавить метрики (Prometheus) и структурированное логирование для платёжных событий.
 
-payment_attempts = Counter('payment_attempts_total', 'Total payment attempts')
-payment_successes = Counter('payment_successes_total', 'Successful payments')
-payment_failures = Counter('payment_failures_total', 'Failed payments')
-payment_duration = Histogram('payment_duration_seconds', 'Payment processing time')
-```
+---
 
-#### 5.3 Logging
+## Таймлайн
 
-```python
-# Configure structured logging for payments
-logger.info(
-    "payment_initiated",
-    extra={
+Общая оценка: 6–10 дней (включая тесты и QA)
+
+---
+
+**Версия документа:** 1.0  
+**Последнее обновление:** 7 декабря 2025  
+**Автор:** GitHub Copilot
         "order_id": order.id,
         "amount_cents": order.total_amount_cents,
         "payment_provider": "yookassa"
