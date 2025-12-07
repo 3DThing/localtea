@@ -3,7 +3,7 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 pydantic-settings
-python-jose[cryptography]
+python-jose[cryptography]>=3.4.0
 passlib[argon2]
 celery
 redis
@@ -13,5 +13,4 @@ aiosqlite
 asyncpg
 alembic
 jinja2
-jinja2
-Pillow
+Pillow>=10.3.0
