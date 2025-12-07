@@ -10,13 +10,16 @@ async def get_counters(entity_type: str, entity_id: int):
     """
     views_key = f"{entity_type}:{entity_id}:views"
     likes_key = f"{entity_type}:{entity_id}:likes"
+    comments_key = f"{entity_type}:{entity_id}:comments"
     
     views = await redis_client.get(views_key)
     likes = await redis_client.get(likes_key)
+    comments = await redis_client.get(comments_key)
     
     return {
         "views_count": int(views) if views else 0,
-        "likes_count": int(likes) if likes else 0
+        "likes_count": int(likes) if likes else 0,
+        "comments_count": int(comments) if comments else 0
     }
 
 async def incr_view(entity_type: str, entity_id: int):

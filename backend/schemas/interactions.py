@@ -2,6 +2,14 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
+# --- User Info (для вложения в комментарии) ---
+class UserBasic(BaseModel):
+    id: int
+    username: str
+    avatar_url: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
 # --- Comment Schemas ---
 class CommentBase(BaseModel):
     content: str
@@ -17,11 +25,7 @@ class Comment(CommentBase):
     likes_count: int
     article_id: Optional[int] = None
     product_id: Optional[int] = None
-    
-    # Optional: Include basic user info if needed, or fetch separately
-    # For now, just user_id is enough as per basic spec, 
-    # but usually frontend needs username/avatar.
-    # Let's assume we might expand this later or use a nested User schema if requested.
+    user: Optional[UserBasic] = None  # Добавляем информацию о пользователе
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,6 +38,7 @@ class LikeCreate(BaseModel):
 class LikeResponse(BaseModel):
     liked: bool
     likes_count: int
+    delta: int = 0
 
 # --- View Schemas ---
 class ViewCreate(BaseModel):

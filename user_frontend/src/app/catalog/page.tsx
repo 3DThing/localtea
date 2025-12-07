@@ -48,6 +48,8 @@ function CatalogContent() {
       sort: sortBy || undefined,
       q: search || undefined,
     }),
+    // only load products when a category is selected
+    enabled: !!categoryId,
   });
 
   const categories = categoriesData?.data || [];
@@ -128,22 +130,22 @@ function CatalogContent() {
       {showCategories && (
         <Box mb={60}>
           <Text size="lg" fw={600} mb="lg">Выберите категорию</Text>
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
+          <SimpleGrid cols={{ base: 1, sm: 1, md: 1 }} spacing="xl" style={{ justifyItems: 'center' }}>
             {categoriesLoading ? (
-              Array(6).fill(0).map((_, i) => (
-                <Skeleton key={i} height={200} radius="lg" />
+              Array(3).fill(0).map((_, i) => (
+                <Skeleton key={i} height={420} radius="lg" style={{ width: '100%', maxWidth: 900 }} />
               ))
             ) : categories.length > 0 ? (
               categories.map((category: any) => (
                 <Box
                   key={category.id}
                   className="banner-card"
-                  h={200}
+                  h={420}
                   onClick={() => setCategoryId(category.id.toString())}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', maxWidth: 900, margin: '0 auto', width: '100%' }}
                 >
                   <Image
-                    src={category.image || 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=600'}
+                    src={category.image || 'https://images.unsplash.com/photo-1564890369478-c89ca6d9cde9?w=1400'}
                     alt={category.name}
                     h="100%"
                     style={{ objectFit: 'cover' }}
@@ -154,7 +156,7 @@ function CatalogContent() {
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      padding: 24,
+                      padding: 28,
                       zIndex: 2,
                     }}
                   >
@@ -165,6 +167,7 @@ function CatalogContent() {
                       size="sm"
                       mt="md"
                       rightSection={<IconArrowRight size={14} />}
+                      style={{ borderRadius: 10, padding: '10px 14px' }}
                     >
                       Открыть
                     </Button>
@@ -172,50 +175,9 @@ function CatalogContent() {
                 </Box>
               ))
             ) : (
-              // Placeholder categories
-              [
-                { name: 'Зелёный чай', description: 'Освежающие сорта из Китая и Японии' },
-                { name: 'Чёрный чай', description: 'Классические насыщенные вкусы' },
-                { name: 'Улун', description: 'Полуферментированный чай' },
-                { name: 'Пуэр', description: 'Выдержанный китайский чай' },
-                { name: 'Белый чай', description: 'Нежный и деликатный вкус' },
-                { name: 'Травяной чай', description: 'Без кофеина, на травах' },
-              ].map((category, index) => (
-                <Box
-                  key={index}
-                  className="banner-card"
-                  h={200}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <Image
-                    src={`https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&sig=${index}`}
-                    alt={category.name}
-                    h="100%"
-                    style={{ objectFit: 'cover' }}
-                  />
-                  <Box
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      padding: 24,
-                      zIndex: 2,
-                    }}
-                  >
-                    <Text size="xl" fw={700} c="white" mb="xs">{category.name}</Text>
-                    <Text size="sm" c="gray.4" lineClamp={2}>{category.description}</Text>
-                    <Button
-                      variant="white"
-                      size="sm"
-                      mt="md"
-                      rightSection={<IconArrowRight size={14} />}
-                    >
-                      Открыть
-                    </Button>
-                  </Box>
-                </Box>
-              ))
+              <Box style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60 }}>
+                <Text c="dimmed" size="lg">Категории скоро появятся</Text>
+              </Box>
             )}
           </SimpleGrid>
         </Box>
@@ -236,23 +198,26 @@ function CatalogContent() {
           </Group>
         )}
 
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="lg">
-          {productsLoading ? (
-            Array(8).fill(0).map((_, i) => (
-              <Skeleton key={i} height={350} radius="lg" />
-            ))
-          ) : products.length > 0 ? (
-            products.map((product: any) => (
-              <ProductCard key={product.id} product={product} />
-            ))
-          ) : (
-            <Box style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60 }}>
-              <Text c="dimmed" size="lg">
-                {search ? 'Ничего не найдено по вашему запросу' : 'Товары скоро появятся'}
-              </Text>
-            </Box>
-          )}
-        </SimpleGrid>
+        {/* Render products grid only when a category is selected */}
+        {categoryId ? (
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="lg">
+            {productsLoading ? (
+              Array(8).fill(0).map((_, i) => (
+                <Skeleton key={i} height={350} radius="lg" />
+              ))
+            ) : products && products.length > 0 ? (
+              products.map((product: any) => (
+                <ProductCard key={product.id} product={product} />
+              ))
+            ) : (
+              <Box style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60 }}>
+                <Text c="dimmed" size="lg">
+                  {search ? 'Ничего не найдено по вашему запросу' : 'Товары в этой категории скоро появятся'}
+                </Text>
+              </Box>
+            )}
+          </SimpleGrid>
+        ) : null}
 
         {/* Pagination */}
         {totalPages > 1 && (

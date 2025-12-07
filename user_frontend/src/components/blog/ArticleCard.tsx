@@ -32,21 +32,25 @@ export function ArticleCard({ article }: ArticleCardProps) {
           flexDirection: 'row',
           height: 200,
           overflow: 'hidden',
-          background: 'rgba(26, 27, 30, 0.8)',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          transition: 'all 0.3s ease',
+          background: 'linear-gradient(90deg, rgba(36,24,14,0.92), rgba(20,16,12,0.96))',
+          border: '1px solid rgba(212,137,79,0.07)',
+          boxShadow: '0 8px 30px rgba(10,8,6,0.6)',
+          transition: 'transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease',
+          borderRadius: 12,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(117, 61, 218, 0.3)';
-          e.currentTarget.style.transform = 'translateY(-4px)';
+          e.currentTarget.style.borderColor = 'rgba(212,137,79,0.22)';
+          e.currentTarget.style.transform = 'translateY(-6px)';
+          e.currentTarget.style.boxShadow = '0 16px 44px rgba(8,6,4,0.65)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+          e.currentTarget.style.borderColor = 'rgba(212,137,79,0.07)';
           e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 8px 30px rgba(10,8,6,0.6)';
         }}
       >
         {/* Image */}
-        <Box style={{ width: 300, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+        <Box style={{ width: 320, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
           <Image
             src={article.preview_image || 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400'}
             alt={article.title}
@@ -58,7 +62,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'linear-gradient(to right, transparent 50%, rgba(26, 27, 30, 1) 100%)',
+              background: 'linear-gradient(to right, rgba(0,0,0,0.05) 30%, rgba(20,16,12,0.9) 100%)',
             }}
           />
         </Box>
@@ -76,35 +80,36 @@ export function ArticleCard({ article }: ArticleCardProps) {
           }}
         >
           <Box>
-            <Text size="xl" fw={700} c="white" mb="xs" lineClamp={1}>
+            <Text size="xl" fw={700} c="#fbf6ee" mb="xs" lineClamp={1} style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
               {article.title}
             </Text>
-            <Text size="sm" c="gray.5" lineClamp={2} mb="md">
+            <Text size="sm" c="#e8dcc8" lineClamp={2} mb="md">
               {truncateText(article.content.replace(/<[^>]*>/g, ''), 150)}
             </Text>
           </Box>
 
           <Group justify="space-between" align="center">
-            <Group gap="lg">
+              <Group gap="lg">
               <Group gap={4}>
-                <IconEye size={16} style={{ color: 'var(--mantine-color-dimmed)' }} />
-                <Text size="sm" c="dimmed">{article.views_count.toLocaleString('ru-RU')}</Text>
+                <IconEye size={16} style={{ color: '#d9b37a' }} />
+                <Text size="sm" c="#e8dcc8">{article.views_count.toLocaleString('ru-RU')}</Text>
               </Group>
               <Group gap={4}>
-                <IconHeart size={16} style={{ color: 'var(--mantine-color-dimmed)' }} />
-                <Text size="sm" c="dimmed">{article.likes_count}</Text>
+                <IconHeart size={16} style={{ color: '#d4894f' }} />
+                <Text size="sm" c="#e8dcc8">{article.likes_count}</Text>
               </Group>
               <Group gap={4}>
-                <IconMessage size={16} style={{ color: 'var(--mantine-color-dimmed)' }} />
-                <Text size="sm" c="dimmed">{article.comments_count}</Text>
+                <IconMessage size={16} style={{ color: '#d9b37a' }} />
+                <Text size="sm" c="#e8dcc8">{article.comments_count}</Text>
               </Group>
             </Group>
 
             <Button
               variant="subtle"
-              color="violet"
+              color="orange"
               rightSection={<IconArrowRight size={14} />}
               size="sm"
+              style={{ color: '#f8efe0' }}
             >
               Читать полностью
             </Button>

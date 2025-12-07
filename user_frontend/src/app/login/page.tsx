@@ -62,10 +62,10 @@ export default function LoginPage() {
   return (
     <Container size={420} py={80}>
       <Box ta="center" mb="xl">
-        <Title order={1} mb="xs">
+        <Title order={1} mb="xs" style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#fbf6ee' }}>
           Добро пожаловать
         </Title>
-        <Text c="dimmed">
+        <Text c="#e8dcc8">
           Войдите в свой аккаунт LocalTea
         </Text>
       </Box>
@@ -74,9 +74,10 @@ export default function LoginPage() {
         p="xl"
         radius="lg"
         style={{
-          background: 'rgba(26, 27, 30, 0.8)',
-          border: '1px solid rgba(117, 61, 218, 0.2)',
-          backdropFilter: 'blur(10px)',
+          background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(18,14,10,0.98))',
+          border: '1px solid rgba(212,137,79,0.08)',
+          boxShadow: '0 12px 36px rgba(8,6,4,0.6)',
+          borderRadius: 14,
         }}
       >
         <form onSubmit={form.onSubmit(handleSubmit)}>
@@ -84,17 +85,33 @@ export default function LoginPage() {
             <TextInput
               label="Email"
               placeholder="your@email.com"
-              leftSection={<IconMail size={16} />}
+              leftSection={<IconMail size={16} style={{ color: '#d4894f' }} />}
               {...form.getInputProps('email')}
               size="md"
+              styles={{
+                input: {
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(212,137,79,0.08)',
+                  color: '#fbf6ee',
+                },
+                label: { color: '#e8dcc8' },
+              }}
             />
 
             <PasswordInput
               label="Пароль"
               placeholder="Ваш пароль"
-              leftSection={<IconLock size={16} />}
+              leftSection={<IconLock size={16} style={{ color: '#d4894f' }} />}
               {...form.getInputProps('password')}
               size="md"
+              styles={{
+                input: {
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(212,137,79,0.08)',
+                  color: '#fbf6ee',
+                },
+                label: { color: '#e8dcc8' },
+              }}
             />
 
             {error && (
@@ -108,20 +125,21 @@ export default function LoginPage() {
               fullWidth
               size="md"
               variant="gradient"
-              gradient={{ from: 'violet', to: 'grape' }}
+              gradient={{ from: '#d4894f', to: '#8b5a2b' }}
               loading={isLoading}
               mt="md"
+              style={{ color: '#fbf6ee', borderRadius: 10, padding: '12px 16px' }}
             >
               Войти
             </Button>
           </Stack>
         </form>
 
-        <Divider my="lg" label="или" labelPosition="center" />
+        <Divider my="lg" label="или" labelPosition="center" style={{ color: '#e8dcc8' }} />
 
-        <Text ta="center" size="sm">
+        <Text ta="center" size="sm" style={{ color: '#e8dcc8' }}>
           Ещё нет аккаунта?{' '}
-          <Anchor component={Link} href="/register" c="violet">
+          <Anchor component={Link} href="/register" style={{ color: '#d4894f', fontWeight: 600 }}>
             Зарегистрироваться
           </Anchor>
         </Text>

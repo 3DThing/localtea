@@ -60,10 +60,10 @@ export default function HomePage() {
           style={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: 'url(https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=1920)',
+            backgroundImage: 'url(/forest-hero.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.15,
+            opacity: 0.95,
           }}
         />
         
@@ -72,12 +72,17 @@ export default function HomePage() {
             <Badge 
               size="lg" 
               variant="gradient" 
-              gradient={{ from: 'violet', to: 'grape' }}
-              style={{ animation: 'float 3s ease-in-out infinite' }}
+              gradient={{ from: 'darkWood.4', to: 'darkWood.6' }}
+              style={{ 
+                animation: 'float 3s ease-in-out infinite',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                padding: '8px 16px',
+                fontWeight: 400,
+              }}
             >
               <Group gap="xs">
                 <IconSparkles size={14} />
-                Новая коллекция
+                Эллийская коллекция
               </Group>
             </Badge>
 
@@ -85,29 +90,27 @@ export default function HomePage() {
               order={1}
               style={{
                 fontSize: 'clamp(2.5rem, 8vw, 5rem)',
-                fontWeight: 800,
-                lineHeight: 1.1,
-                textShadow: '0 0 60px rgba(117, 61, 218, 0.5)',
+                fontWeight: 700,
+                lineHeight: 1.15,
+                color: '#faf8f4',
+                textShadow: '0 4px 18px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5)',
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                letterSpacing: '0.5px',
               }}
             >
-              <Text
-                component="span"
-                inherit
-                style={{
-                  background: 'linear-gradient(135deg, #fff 0%, #a27de7 50%, #ff922b 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                Магия в каждой чашке
-              </Text>
+              Лесная магия в каждой чашке
             </Title>
 
             <Text 
               size="xl" 
-              c="dimmed" 
-              maw={600}
-              style={{ lineHeight: 1.8 }}
+              maw={640}
+              style={{ 
+                lineHeight: 1.9,
+                color: '#e8f0f8',
+                textShadow: '0 3px 12px rgba(0, 0, 0, 0.65), 0 1px 5px rgba(0, 0, 0, 0.5)',
+                fontWeight: 400,
+                fontSize: '1.15rem',
+              }}
             >
               Откройте для себя мир изысканных чаёв со всего мира. 
               Каждый сорт — это уникальная история вкуса и аромата.
@@ -117,25 +120,38 @@ export default function HomePage() {
               <Button
                 component={Link}
                 href="/catalog"
-                size="xl"
-                variant="gradient"
-                gradient={{ from: 'violet', to: 'grape' }}
-                rightSection={<IconArrowRight size={20} />}
+                size="lg"
+                variant="filled"
+                color="orange.7"
+                rightSection={<IconArrowRight size={18} />}
                 style={{
-                  boxShadow: '0 0 40px rgba(117, 61, 218, 0.4)',
+                  backgroundColor: '#d4894f',
+                  boxShadow: '0 3px 12px rgba(0, 0, 0, 0.35), 0 1px 4px rgba(0, 0, 0, 0.25)',
                   transition: 'all 0.3s ease',
+                  borderRadius: '12px',
+                  padding: '14px 28px',
+                  fontWeight: 500,
                 }}
               >
-                Перейти в каталог
+                Открыть лесной каталог
               </Button>
               <Button
                 component={Link}
                 href="/about"
-                size="xl"
-                variant="subtle"
-                color="gray"
+                size="lg"
+                variant="outline"
+                style={{ 
+                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                  borderWidth: '1.5px',
+                  color: '#ffffff',
+                  backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                  borderRadius: '12px',
+                  padding: '14px 28px',
+                  fontWeight: 400,
+                  backdropFilter: 'blur(4px)',
+                }}
               >
-                Узнать больше
+                Легенда о LocalTea
               </Button>
             </Group>
           </Stack>
@@ -157,7 +173,7 @@ export default function HomePage() {
 
       {/* Features Section */}
       <Container size="xl" py={80}>
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="xl">
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="xl" style={{ alignItems: 'center', justifyItems: 'center' }}>
           {[
             { icon: IconLeaf, title: 'Натуральный', description: 'Только органический чай без добавок' },
             { icon: IconFlame, title: 'Свежий', description: 'Доставка напрямую с плантаций' },
@@ -169,8 +185,9 @@ export default function HomePage() {
               className="glow-card"
               p="xl"
               radius="lg"
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}
             >
-              <feature.icon size={40} style={{ color: '#753dda', marginBottom: 16 }} />
+              <feature.icon size={40} style={{ color: '#e5ff00ff', marginBottom: 16 }} />
               <Text fw={600} size="lg" mb="xs">{feature.title}</Text>
               <Text size="sm" c="dimmed">{feature.description}</Text>
             </Card>
@@ -182,14 +199,14 @@ export default function HomePage() {
       <Box 
         py={80} 
         style={{ 
-          background: 'linear-gradient(180deg, transparent 0%, rgba(67, 22, 151, 0.1) 50%, transparent 100%)',
+          background: 'linear-gradient(180deg, transparent 0%, rgba(100, 70, 40, 0.08) 50%, transparent 100%)',
         }}
       >
         <Container size="xl">
           <Stack gap="xl">
             <Group justify="space-between" align="flex-end">
               <Stack gap="xs">
-                <Text size="sm" c="violet" fw={600} tt="uppercase" style={{ letterSpacing: "2px" }}>Коллекции</Text>
+                <Text size="sm" c="orange" fw={600} tt="uppercase" style={{ letterSpacing: "2px" }}>Коллекции</Text>
                 <Title order={2}>Наши категории</Title>
               </Stack>
               <Button 
@@ -275,13 +292,16 @@ export default function HomePage() {
                           zIndex: 2,
                         }}
                       >
-                        <Text size="xl" fw={700} c="white" mb="xs">{category.name}</Text>
-                        <Text size="sm" c="gray.4" lineClamp={2}>{category.description}</Text>
+                        <Text size="xl" fw={700} c="#faf8f5" mb="xs" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.7)' }}>{category.name}</Text>
+                        <Text size="sm" c="#e8dcc8" lineClamp={2} style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.6)' }}>{category.description}</Text>
                         <Button 
                           variant="white" 
                           size="sm" 
                           mt="md"
                           rightSection={<IconArrowRight size={14} />}
+                          style={{
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                          }}
                         >
                           Открыть
                         </Button>
@@ -354,7 +374,7 @@ export default function HomePage() {
       <Box 
         py={80} 
         style={{ 
-          background: 'linear-gradient(180deg, transparent 0%, rgba(191, 64, 0, 0.08) 50%, transparent 100%)',
+          background: 'linear-gradient(180deg, transparent 0%, rgba(120, 80, 50, 0.08) 50%, transparent 100%)',
         }}
       >
         <Container size="xl">
@@ -412,16 +432,20 @@ export default function HomePage() {
       </Box>
 
       {/* CTA Section */}
+      
+        {/*
       <Container size="xl" py={80}>
+
         <Card
           className="glow-card"
           p={60}
           radius="xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(67, 22, 151, 0.3) 0%, rgba(191, 64, 0, 0.2) 100%)',
+            background: 'linear-gradient(135deg, rgba(100, 70, 40, 0.25) 0%, rgba(80, 50, 20, 0.15) 100%)',
             textAlign: 'center',
           }}
         >
+          
           <Stack gap="xl" align="center">
             <Title order={2}>
               Готовы открыть для себя мир чая?
@@ -434,14 +458,14 @@ export default function HomePage() {
               href="/register"
               size="xl"
               variant="gradient"
-              gradient={{ from: 'violet', to: 'orange' }}
+              gradient={{ from: 'darkWood.4', to: 'darkWood.6' }}
               rightSection={<IconArrowRight size={20} />}
             >
               Создать аккаунт
             </Button>
-          </Stack>
-        </Card>
-      </Container>
+          </Stack> 
+        </Card> 
+      </Container> */}
     </>
   );
 }

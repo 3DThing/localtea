@@ -21,6 +21,14 @@ async def read_articles(
     Retrieve published articles.
     """
     articles = await crud_blog.article.get_multi_published(db, skip=skip, limit=limit, search=search)
+    
+    # Fetch counters from Redis for each article
+    for article in articles:
+        counters = await cache.get_counters("article", article.id)
+        article.views_count = max(article.views_count, counters["views_count"])
+        article.likes_count = max(article.likes_count, counters["likes_count"])
+        article.comments_count = max(article.comments_count, counters["comments_count"])
+    
     return articles
 
 @router.get("/articles/{slug}", response_model=blog_schemas.Article)
@@ -44,6 +52,7 @@ async def read_article(
     counters = await cache.get_counters("article", article.id)
     article.views_count = max(article.views_count, counters["views_count"])
     article.likes_count = max(article.likes_count, counters["likes_count"])
+    article.comments_count = max(article.comments_count, counters["comments_count"])
     
     # Check is_liked
     if current_user:

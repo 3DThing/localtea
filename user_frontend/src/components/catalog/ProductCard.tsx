@@ -30,24 +30,27 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <Card className="product-card" p={0}>
+    <Card className="product-card" p={0} radius="md" shadow="sm" style={{ overflow: 'hidden', margin: '0 auto' }}>
       <Link href={`/catalog/${product.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-        <Box className="image-wrapper" h={200} style={{ position: 'relative' }}>
+        <Box className="image-wrapper" h={320} style={{ position: 'relative' }}>
           <Image
-            src={product.main_image || 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400'}
+            src={product.main_image || 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800'}
             alt={product.title}
             h="100%"
             style={{ objectFit: 'cover' }}
           />
           {product.tea_type && (
             <Badge
-              variant="gradient"
-              gradient={{ from: 'violet', to: 'grape' }}
+              variant="filled"
+              color="yellow"
               style={{
                 position: 'absolute',
                 top: 12,
                 left: 12,
                 zIndex: 3,
+                background: 'rgba(218,160,80,0.95)',
+                color: '#2b1f15',
+                fontWeight: 700,
               }}
             >
               {product.tea_type}
@@ -64,9 +67,9 @@ export function ProductCard({ product }: ProductCardProps) {
           >
             <ActionIcon
               variant="subtle"
-              color="white"
+              color="gray"
               size="sm"
-              style={{ background: 'rgba(0,0,0,0.5)' }}
+              style={{ background: 'rgba(0,0,0,0.35)', color: 'white' }}
             >
               <IconHeart size={14} />
             </ActionIcon>
@@ -75,11 +78,11 @@ export function ProductCard({ product }: ProductCardProps) {
       </Link>
 
       <Box p="md">
-        <Text size="xs" c="dimmed" mb={4}>
+        <Text size="xs" c="dimmed" mb={4} style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
           {product.category?.name || 'Чай'}
         </Text>
         <Link href={`/catalog/${product.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Text fw={600} lineClamp={1} mb="xs" style={{ cursor: 'pointer' }}>
+          <Text fw={700} lineClamp={1} mb="xs" style={{ cursor: 'pointer' }}>
             {product.title}
           </Text>
         </Link>
@@ -99,17 +102,18 @@ export function ProductCard({ product }: ProductCardProps) {
           )}
         </Group>
 
-        <Group justify="space-between" align="center">
-          <Text fw={700} size="lg" c="violet">
+        <Group justify="space-between" align="center" style={{ marginTop: 8 }}>
+          <Text fw={800} size="lg" style={{ color: '#d9a85b' }}>
             от {formatPrice(product.min_price_cents)}
           </Text>
           <Button
             component={Link}
             href={`/catalog/${product.slug}`}
-            size="xs"
-            variant="light"
-            color="violet"
+            size="sm"
+            variant="filled"
+            color="yellow"
             rightSection={<IconShoppingCart size={14} />}
+            style={{ background: '#d9a85b', color: '#2b1f15' }}
           >
             Купить
           </Button>

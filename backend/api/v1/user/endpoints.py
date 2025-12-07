@@ -317,11 +317,20 @@ async def change_address(
 @router.post("/upload-avatar")
 async def upload_avatar(
     request: Request,
-    file: UploadFile = File(...),
     db: AsyncSession = Depends(deps.get_db),
+    file: UploadFile = File(...),
     current_user: User = Depends(deps.get_current_user_with_csrf)
 ) -> Any:
-    return await user_service.upload_avatar(db, current_user, file)
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Upload avatar request: filename={file.filename}, content_type={file.content_type}, size={file.size}")
+    try:
+        result = await user_service.upload_avatar(db, current_user, file)
+        logger.info(f"Avatar uploaded successfully: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Avatar upload failed: {str(e)}", exc_info=True)
+        raise
 
 @router.get("/get-profile", response_model=user_schemas.User)
 async def get_profile(

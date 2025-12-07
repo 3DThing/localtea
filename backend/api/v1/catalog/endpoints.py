@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
+@router.get("/categories/", response_model=List[catalog_schemas.CategoryTree])
 @router.get("/categories", response_model=List[catalog_schemas.CategoryTree])
 async def get_categories(
     db: AsyncSession = Depends(deps.get_db)

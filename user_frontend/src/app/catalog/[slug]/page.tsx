@@ -64,6 +64,7 @@ export default function ProductDetailPage() {
 
   const product = productData?.data;
   const comments = commentsData?.data || [];
+  const commentsCount = comments.length || product?.comments_count || 0;
 
   // Select first SKU by default
   useEffect(() => {
@@ -81,7 +82,36 @@ export default function ProductDetailPage() {
 
   const likeMutation = useMutation({
     mutationFn: () => interactionsApi.toggleLike({ product_id: product.id }),
-    onSuccess: () => {
+    // optimistic update for instant feedback
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['product', slug] });
+      const previous = queryClient.getQueryData(['product', slug]);
+      queryClient.setQueryData(['product', slug], (old: any) => {
+        if (!old?.data) return old;
+        const liked = !!old.data.is_liked;
+        const likes = old.data.likes_count || 0;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            is_liked: !liked,
+            likes_count: liked ? Math.max(likes - 1, 0) : likes + 1,
+          },
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['product', slug], context.previous);
+      }
+      notifications.show({
+        title: 'Лайк не сохранён',
+        message: 'Войдите в аккаунт, чтобы ставить лайки',
+        color: 'red',
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['product', slug] });
     },
   });
@@ -108,6 +138,18 @@ export default function ProductDetailPage() {
       });
     },
   });
+
+  const handleLike = () => {
+    if (!user) {
+      notifications.show({
+        title: 'Требуется вход',
+        message: 'Войдите в аккаунт, чтобы ставить лайки',
+        color: 'red',
+      });
+      return;
+    }
+    likeMutation.mutate();
+  };
 
   const handleAddToCart = async () => {
     if (!selectedSku) return;
@@ -257,19 +299,20 @@ export default function ProductDetailPage() {
                     cursor: 'pointer',
                     color: product.is_liked ? '#ff6b6b' : undefined,
                   }}
-                  onClick={() => likeMutation.mutate()}
+                  onClick={handleLike}
                 />
-                <Text size="sm" c="dimmed">{product.likes_count || 0}</Text>
+                <Text size="sm" c="dimmed">{product.likes_count ?? 0}</Text>
               </Group>
               <Group gap={4}>
                 <IconMessage size={18} style={{ opacity: 0.5 }} />
-                <Text size="sm" c="dimmed">{product.comments_count || 0}</Text>
+                <Text size="sm" c="dimmed">{commentsCount}</Text>
               </Group>
             </Group>
 
             {/* Description */}
             <Text c="dimmed" style={{ lineHeight: 1.8 }}>
-              {product.description}
+              
+              {product.lore_description || 'Описание скоро появится...'}
             </Text>
 
             <Divider my="md" color="dark.5" />
@@ -346,7 +389,7 @@ export default function ProductDetailPage() {
               <Button
                 size="lg"
                 variant="gradient"
-                gradient={{ from: 'violet', to: 'grape' }}
+                gradient={{ from: 'brown', to: 'grape' }}
                 leftSection={<IconShoppingCart size={20} />}
                 onClick={handleAddToCart}
                 loading={cartLoading}
@@ -360,7 +403,7 @@ export default function ProductDetailPage() {
                 size="lg"
                 variant="light"
                 color={product.is_liked ? 'red' : 'gray'}
-                onClick={() => likeMutation.mutate()}
+                onClick={handleLike}
               >
                 <IconHeart size={20} fill={product.is_liked ? '#ff6b6b' : 'none'} />
               </ActionIcon>
@@ -374,15 +417,15 @@ export default function ProductDetailPage() {
         <Tabs defaultValue="description" color="violet">
           <Tabs.List>
             <Tabs.Tab value="description">Описание</Tabs.Tab>
-            <Tabs.Tab value="brewing">Способ заваривания</Tabs.Tab>
+
             <Tabs.Tab value="comments">
-              Отзывы ({product.comments_count || 0})
+              Отзывы ({commentsCount})
             </Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="description" pt="xl">
             <Text style={{ lineHeight: 2, whiteSpace: 'pre-wrap' }}>
-              {product.lore_description || product.description || 'Описание скоро появится...'}
+              { product.description || 'Описание скоро появится...'}
             </Text>
           </Tabs.Panel>
 
@@ -449,7 +492,11 @@ export default function ProductDetailPage() {
                       }}
                     >
                       <Group gap="md" mb="sm">
-                        <Avatar radius="xl" size="md">
+                        <Avatar 
+                          radius="xl" 
+                          size="md"
+                          src={c.user?.avatar_url}
+                        >
                           {c.user?.username?.charAt(0).toUpperCase() || 'U'}
                         </Avatar>
                         <Box>

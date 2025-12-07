@@ -13,6 +13,7 @@ from backend.core import cache
 router = APIRouter()
 
 @router.post("/comments/", response_model=schemas.Comment)
+@router.post("/comments", response_model=schemas.Comment)
 @limiter.limit("5/minute")
 async def create_comment(
     request: Request,
@@ -32,6 +33,7 @@ async def create_comment(
     return comment
 
 @router.get("/comments/", response_model=List[schemas.Comment])
+@router.get("/comments", response_model=List[schemas.Comment])
 async def read_comments(
     article_id: Optional[int] = None,
     product_id: Optional[int] = None,
@@ -68,6 +70,7 @@ async def delete_comment(
     return None
 
 @router.post("/likes/", response_model=schemas.LikeResponse)
+@router.post("/likes", response_model=schemas.LikeResponse)
 @limiter.limit("10/minute")
 async def toggle_like(
     request: Request,
@@ -97,6 +100,7 @@ async def toggle_like(
     return result
 
 @router.post("/views/")
+@router.post("/views")
 @limiter.limit("20/minute")
 async def register_view(
     request: Request,

@@ -14,3 +14,4 @@ asyncpg
 alembic
 jinja2
 jinja2
+Pillow

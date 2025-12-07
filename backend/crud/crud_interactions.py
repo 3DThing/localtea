@@ -27,7 +27,9 @@ class CRUDInteractions:
         return db_obj
 
     async def get_comments(self, db: AsyncSession, *, article_id: Optional[int] = None, product_id: Optional[int] = None, skip: int = 0, limit: int = 20):
-        query = select(Comment)
+        from sqlalchemy.orm import joinedload
+        
+        query = select(Comment).options(joinedload(Comment.user))
         if article_id:
             query = query.where(Comment.article_id == article_id)
         if product_id:
@@ -35,7 +37,7 @@ class CRUDInteractions:
             
         query = query.offset(skip).limit(limit).order_by(Comment.created_at.desc())
         result = await db.execute(query)
-        return result.scalars().all()
+        return result.unique().scalars().all()
 
     async def toggle_like(self, db: AsyncSession, *, obj_in: LikeCreate, user_id: Optional[int], fingerprint: Optional[str]) -> dict:
         # Check if like exists

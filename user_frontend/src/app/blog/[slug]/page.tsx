@@ -40,18 +40,18 @@ export default function ArticleDetailPage() {
   const [comment, setComment] = useState('');
   const { user } = useAuthStore();
 
-  const { data: articleData, isLoading } = useQuery({
+  const { data: articleResponse, isLoading } = useQuery({
     queryKey: ['article', slug],
     queryFn: () => blogApi.getArticle(slug),
   });
 
-  const { data: commentsData, refetch: refetchComments } = useQuery({
-    queryKey: ['comments', 'article', articleData?.data?.id],
-    queryFn: () => interactionsApi.getComments({ article_id: articleData?.data?.id }),
-    enabled: !!articleData?.data?.id,
-  });
+  const article = articleResponse?.data;
 
-  const article = articleData?.data;
+  const { data: commentsData, refetch: refetchComments } = useQuery({
+    queryKey: ['comments', 'article', article?.id],
+    queryFn: () => interactionsApi.getComments({ article_id: article?.id }),
+    enabled: !!article?.id,
+  });
   const comments = commentsData?.data || [];
 
   // Register view
@@ -286,7 +286,11 @@ export default function ArticleDetailPage() {
                 }}
               >
                 <Group gap="md" mb="sm">
-                  <Avatar radius="xl" size="md">
+                  <Avatar 
+                    radius="xl" 
+                    size="md"
+                    src={c.user?.avatar_url}
+                  >
                     {c.user?.username?.charAt(0).toUpperCase() || 'U'}
                   </Avatar>
                   <Box>

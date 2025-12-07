@@ -183,6 +183,7 @@ export function UsersTable() {
             size={40} 
             radius="xl" 
             color={user.is_superuser ? 'blue' : 'gray'}
+            src={user.avatar_url}
           >
             {getInitials(user)}
           </Avatar>

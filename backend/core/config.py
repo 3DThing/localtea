@@ -12,7 +12,12 @@ class Settings(BaseSettings):
     MIGRATION_DATABASE_URL: Optional[str] = None
     REDIS_URL: str
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "https://localtea.ru"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://5.129.219.127:3000",
+        "https://localtea.ru"
+    ]
 
     DEBUG: bool = False
     CSRF_ENABLED: bool = False

@@ -181,19 +181,60 @@ class UserService:
         return {"msg": "Address updated"}
 
     async def upload_avatar(self, db: AsyncSession, user: User, file: UploadFile):
-        if file.content_type not in ["image/jpeg", "image/png"]:
-            raise HTTPException(status_code=422, detail="Invalid file type")
-            
-        upload_dir = "backend/uploads/avatars"
+        from PIL import Image
+        import uuid
+        
+        # Проверяем расширение файла
+        if file.filename:
+            ext_orig = file.filename.split('.')[-1].lower()
+            if ext_orig not in ['jpg', 'jpeg', 'png', 'webp']:
+                raise HTTPException(status_code=422, detail="Unsupported file type. Use JPG, PNG or WEBP")
+        else:
+            raise HTTPException(status_code=422, detail="Invalid filename")
+        
+        # Создаем папку для пользователя
+        upload_dir = f"/app/uploads/user/{user.id}"
         os.makedirs(upload_dir, exist_ok=True)
         
-        file_location = f"{upload_dir}/{user.id}_{file.filename}"
-        with open(file_location, "wb+") as file_object:
-            shutil.copyfileobj(file.file, file_object)
+        # Генерируем уникальное имя файла
+        ext = "webp"
+        filename = f"{uuid.uuid4()}.{ext}"
+        filepath = f"{upload_dir}/{filename}"
+        
+        try:
+            # Открываем изображение
+            img = Image.open(file.file)
             
-        user.avatar_url = file_location
+            # Конвертируем в RGB если необходимо
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            
+            # Изменяем размер если слишком большое (макс 1024px)
+            max_size = 1024
+            if img.width > max_size or img.height > max_size:
+                if img.width > img.height:
+                    ratio = max_size / img.width
+                    new_height = int(img.height * ratio)
+                    img = img.resize((max_size, new_height), Image.Resampling.LANCZOS)
+                else:
+                    ratio = max_size / img.height
+                    new_width = int(img.width * ratio)
+                    img = img.resize((new_width, max_size), Image.Resampling.LANCZOS)
+            
+            # Сохраняем как WebP
+            img.save(filepath, "WEBP", quality=85)
+            
+            # Формируем URL для доступа
+            base_url = os.environ.get("UPLOADS_BASE_URL", "http://5.129.219.127:8000")
+            avatar_url = f"{base_url}/uploads/user/{user.id}/{filename}"
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to process image: {str(e)}")
+            
+        user.avatar_url = avatar_url
         db.add(user)
         await db.commit()
-        return {"msg": "Avatar uploaded"}
+        await db.refresh(user)
+        return {"msg": "Avatar uploaded", "avatar_url": avatar_url}
 
 user_service = UserService()
