@@ -8,7 +8,9 @@ import enum
 class OrderStatus(str, enum.Enum):
     AWAITING_PAYMENT = "awaiting_payment"
     PAID = "paid"
+    PROCESSING = "processing"
     SHIPPED = "shipped"
+    DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
 class PaymentStatus(str, enum.Enum):
@@ -16,16 +18,34 @@ class PaymentStatus(str, enum.Enum):
     FAILED = "failed"
     PENDING = "pending"
 
+class DeliveryMethod(str, enum.Enum):
+    PICKUP = "pickup"           # Самовывоз
+    RUSSIAN_POST = "russian_post"  # Почта России
+
 class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
     session_id = Column(String, nullable=True)
     status = Column(Enum(OrderStatus), default=OrderStatus.AWAITING_PAYMENT, nullable=False)
-    total_amount_cents = Column(Integer, nullable=False)
+    total_amount_cents = Column(Integer, nullable=False)  # Сумма товаров
+    delivery_cost_cents = Column(Integer, default=0)      # Стоимость доставки
     discount_amount_cents = Column(Integer, default=0)
     promo_code = Column(String, nullable=True)
-    shipping_address = Column(JSONB, nullable=True)
+    
+    # Метод доставки
+    delivery_method = Column(Enum(DeliveryMethod), default=DeliveryMethod.PICKUP, nullable=False)
+    
+    # Данные получателя (JSONB для гибкости)
+    # contact_info: {firstname, lastname, middlename, phone, email}
     contact_info = Column(JSONB, nullable=True)
+    
+    # Адрес доставки (JSONB)
+    # shipping_address: {address, postal_code, city}
+    shipping_address = Column(JSONB, nullable=True)
+    
+    # Трек-номер (для Почты России)
+    tracking_number = Column(String, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=True)
 

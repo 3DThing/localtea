@@ -7,6 +7,7 @@ from backend.models.user import User
 from backend.models.blog import Article
 from backend.models.interactions import Comment, Like
 from backend.models.order import Order
+from backend.models.cart import Cart, CartItem
 from backend.crud.crud_user import user as crud_user
 from admin_backend.core.deps import get_current_admin
 from admin_backend.schemas.user import UserAdminResponse, UserAdminUpdate, UserListResponse
@@ -164,16 +165,25 @@ async def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
 
     # Cleanup dependencies
-    # 1. Detach orders
+    # 1. Delete cart items
+    cart_result = await db.execute(select(Cart.id).where(Cart.user_id == user_id))
+    cart_ids = cart_result.scalars().all()
+    if cart_ids:
+        await db.execute(delete(CartItem).where(CartItem.cart_id.in_(cart_ids)))
+    
+    # 2. Delete cart
+    await db.execute(delete(Cart).where(Cart.user_id == user_id))
+    
+    # 3. Detach orders
     await db.execute(update(Order).where(Order.user_id == user_id).values(user_id=None))
     
-    # 2. Delete likes
+    # 4. Delete likes
     await db.execute(delete(Like).where(Like.user_id == user_id))
     
-    # 3. Delete comments
+    # 5. Delete comments
     await db.execute(delete(Comment).where(Comment.user_id == user_id))
     
-    # 4. Delete articles (and their dependencies if any - might need recursive cleanup if no cascade)
+    # 6. Delete articles (and their dependencies if any - might need recursive cleanup if no cascade)
     # Check if user has articles
     articles_result = await db.execute(select(Article.id).where(Article.author_id == user_id))
     article_ids = articles_result.scalars().all()
@@ -186,10 +196,10 @@ async def delete_user(
         # Delete the articles
         await db.execute(delete(Article).where(Article.id.in_(article_ids)))
 
-    # 5. Delete 2FA if exists
+    # 7. Delete 2FA if exists
     await db.execute(delete(crud_admin_2fa.Admin2FA).where(crud_admin_2fa.Admin2FA.user_id == user_id))
 
-    # 6. Delete tokens
+    # 8. Delete tokens
     await db.execute(delete(DBToken).where(DBToken.user_id == user_id))
 
     user = await crud_user.remove(db, id=user_id)

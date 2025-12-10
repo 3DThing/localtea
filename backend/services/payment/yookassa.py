@@ -29,9 +29,12 @@ class YookassaPaymentService(PaymentService):
         url = f"{self.BASE_URL}/payments"
         idempotence_key = str(uuid.uuid4())
         
+        # Общая сумма = товары + доставка
+        total_cents = order.total_amount_cents + (order.delivery_cost_cents or 0)
+        
         payload = {
             "amount": {
-                "value": f"{order.total_amount_cents / 100:.2f}",
+                "value": f"{total_cents / 100:.2f}",
                 "currency": "RUB"
             },
             "capture": True,
@@ -44,6 +47,10 @@ class YookassaPaymentService(PaymentService):
                 "order_id": order.id
             }
         }
+        
+        # Add webhook URL if configured
+        if settings.YOOKASSA_WEBHOOK_URL:
+            payload["notification_url"] = settings.YOOKASSA_WEBHOOK_URL
         
         async with httpx.AsyncClient() as client:
             response = await client.post(

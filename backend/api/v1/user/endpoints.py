@@ -20,8 +20,8 @@ import uuid
 router = APIRouter()
 
 @router.post("/registration", response_model=user_schemas.User)
-@limiter.limit("2/minute")
-@limiter.limit("10/hour")
+@limiter.limit("5/minute")
+@limiter.limit("20/hour")
 async def registration(
     request: Request,
     user_in: user_schemas.UserCreate,
@@ -133,10 +133,23 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/confirm-email")
+async def confirm_email_redirect(
+    token: str,
+) -> Any:
+    """
+    Redirect email confirmation to frontend page
+    """
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"https://localtea.ru/confirm-email?token={token}")
+
+@router.post("/confirm-email")
 async def confirm_email(
     token: str,
     db: AsyncSession = Depends(deps.get_db)
 ) -> Any:
+    """
+    Confirm email via token (POST endpoint for frontend)
+    """
     return await user_service.confirm_email(db, token)
 
 @router.post("/logout")
@@ -314,6 +327,24 @@ async def change_address(
 ) -> Any:
     return await user_service.update_address(db, current_user, address_in)
 
+@router.post("/change-postal-code")
+async def change_postal_code(
+    postal_code_in: user_schemas.ChangePostalCode,
+    request: Request,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user_with_csrf)
+) -> Any:
+    return await user_service.update_postal_code(db, current_user, postal_code_in)
+
+@router.post("/change-phone-number")
+async def change_phone_number(
+    phone_number_in: user_schemas.ChangePhoneNumber,
+    request: Request,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user_with_csrf)
+) -> Any:
+    return await user_service.update_phone_number(db, current_user, phone_number_in)
+
 @router.post("/upload-avatar")
 async def upload_avatar(
     request: Request,
@@ -352,3 +383,60 @@ async def get_public_profile(
         "username": user.username,
         "avatar_url": user.avatar_url
     }
+
+
+# Phone verification endpoints
+@router.post("/phone-verification/start", response_model=user_schemas.PhoneVerificationStart)
+@limiter.limit("3/minute")
+@limiter.limit("10/hour")
+async def start_phone_verification(
+    request: Request,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user_with_csrf)
+) -> Any:
+    """
+    Начать процесс верификации телефона.
+    Инициирует звонок на номер пользователя.
+    """
+    from backend.services.phone_verification import phone_verification_service, PhoneVerificationError
+    from backend.worker import check_phone_verification_status
+    
+    try:
+        result = await phone_verification_service.start_verification(db, current_user.id)
+        
+        # Запускаем фоновую задачу для проверки статуса
+        check_phone_verification_status.delay(current_user.id)
+        
+        return result
+    except PhoneVerificationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/phone-verification/status", response_model=user_schemas.PhoneVerificationStatus)
+async def check_phone_verification(
+    request: Request,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user_with_csrf)
+) -> Any:
+    """
+    Проверить статус верификации телефона.
+    """
+    from backend.services.phone_verification import phone_verification_service, PhoneVerificationError
+    
+    try:
+        return await phone_verification_service.verify_call(db, current_user.id)
+    except PhoneVerificationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/account", status_code=200)
+async def delete_account(
+    request: Request,
+    data: user_schemas.DeleteAccount,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user_with_csrf)
+) -> Any:
+    """
+    Удалить аккаунт пользователя (требуется подтверждение паролем)
+    """
+    return await user_service.delete_account(db, current_user, data.password)

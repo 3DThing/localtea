@@ -25,6 +25,8 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             middlename=obj_in.middlename,
             birthdate=obj_in.birthdate,
             address=obj_in.address,
+            postal_code=obj_in.postal_code,
+            phone_number=obj_in.phone_number,
             is_email_confirmed=False
         )
         db.add(db_obj)
@@ -42,6 +44,10 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     
     async def get_by_email_confirm_token(self, db: AsyncSession, *, token: str) -> Optional[User]:
         result = await db.execute(select(User).where(User.email_confirm_token == token))
+        return result.scalars().first()
+    
+    async def get_by_phone_number(self, db: AsyncSession, *, phone_number: str) -> Optional[User]:
+        result = await db.execute(select(User).where(User.phone_number == phone_number))
         return result.scalars().first()
 
 user = CRUDUser(User)

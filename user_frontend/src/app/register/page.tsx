@@ -31,6 +31,7 @@ export default function RegisterPage() {
   const { register, isLoading } = useAuthStore();
   const [error, setError] = useState('');
   const [modalOpened, setModalOpened] = useState(false);
+  const [successModalOpened, setSuccessModalOpened] = useState(false);
   const [password, setPassword] = useState('');
 
   // Password strength calculation
@@ -70,6 +71,8 @@ export default function RegisterPage() {
       lastname: '',
       middlename: '',
       address: '',
+      postal_code: '',
+      phone_number: '',
       birthdate: '',
       agree: false,
     },
@@ -89,6 +92,16 @@ export default function RegisterPage() {
       firstname: (value) => (value.length >= 2 ? null : 'Минимум 2 символа'),
       lastname: (value) => (value.length >= 2 ? null : 'Минимум 2 символа'),
       address: (value) => (value.length >= 10 ? null : 'Укажите полный адрес доставки'),
+      postal_code: (value) => (value.length >= 5 ? null : 'Укажите корректный индекс'),
+      phone_number: (value) => {
+        if (!/^\+?7/.test(value.replace(/\D/g, ''))) {
+          return 'Номер должен начинаться с +7';
+        }
+        if (value.replace(/\D/g, '').length < 11) {
+          return 'Укажите полный номер телефона';
+        }
+        return null;
+      },
       agree: (value) => (value ? null : 'Необходимо принять условия'),
     },
   });
@@ -105,6 +118,8 @@ export default function RegisterPage() {
           lastname: values.lastname,
           middlename: values.middlename || undefined,
           address: values.address,
+          postal_code: values.postal_code,
+          phone_number: values.phone_number,
           birthdate: values.birthdate || undefined,
         }
       );
@@ -114,7 +129,7 @@ export default function RegisterPage() {
         color: 'green',
         autoClose: 10000,
       });
-      router.push('/login');
+      setSuccessModalOpened(true);
     } catch (err: any) {
       const message = err.response?.data?.detail || 'Ошибка регистрации';
       setError(message);
@@ -147,148 +162,223 @@ export default function RegisterPage() {
       >
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack gap="md">
-            <TextInput
-              label="Имя пользователя"
-              placeholder="username"
-              leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('username')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
+            {/* Учетные данные */}
+            <Box
+              style={{
+                border: '1px solid rgba(212,137,79,0.06)',
+                padding: 12,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, rgba(212,137,79,0.04), rgba(212,137,79,0.01))',
+              }}
+            >
+              <Title order={5} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f', marginBottom: 12 }}>Учетные данные</Title>
+              <Stack gap="sm">
+                <TextInput
+                  label="Имя пользователя"
+                  placeholder="username"
+                  leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('username')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
 
-            <TextInput
-              label="Email"
-              placeholder="your@email.com"
-              leftSection={<IconMail size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('email')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
-            {/* Email validity indicator */}
-            {form.values.email.length > 0 && (
-              <Group gap={8} align="center" mt={6}>
-                {(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.values.email)) ? (
-                  <>
-                    <IconCheck size={14} color="#4ade80" />
-                    <Text size="xs" c="#4ade80">Email корректен</Text>
-                  </>
-                ) : (
-                  <>
-                    <IconX size={14} color="#f87171" />
-                    <Text size="xs" c="#f87171">Некорректный email</Text>
-                  </>
-                )}
-              </Group>
-            )}
-
-            <Box>
-              <PasswordInput
-                label="Пароль"
-                placeholder="Минимум 8 символов"
-                leftSection={<IconLock size={16} style={{ color: '#d4894f' }} />}
-                {...form.getInputProps('password')}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  form.setFieldValue('password', e.target.value);
-                }}
-                size="md"
-                styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-              />
-              {password && (
-                <Box mt="xs">
-                  <Group gap="xs" mb={6}>
-                    <Text size="xs" c="#e8dcc8">Надёжность пароля:</Text>
-                    <Text size="xs" fw={600} c={getStrengthColor()}>
-                      {passwordStrength < 25 ? 'Слабый' : passwordStrength < 50 ? 'Средний' : passwordStrength < 75 ? 'Хороший' : 'Отличный'}
-                    </Text>
+                <TextInput
+                  label="Email"
+                  placeholder="your@email.com"
+                  leftSection={<IconMail size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('email')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
+                {/* Email validity indicator */}
+                {form.values.email.length > 0 && (
+                  <Group gap={8} align="center" mt={6}>
+                    {(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(form.values.email)) ? (
+                      <>
+                        <IconCheck size={14} color="#4ade80" />
+                        <Text size="xs" c="#4ade80">Email корректен</Text>
+                      </>
+                    ) : (
+                      <>
+                        <IconX size={14} color="#f87171" />
+                        <Text size="xs" c="#f87171">Некорректный email</Text>
+                      </>
+                    )}
                   </Group>
-                  <Progress value={passwordStrength} color={getStrengthColor()} size="sm" mb="xs" />
-                  <Stack gap={4}>
-                    <Group gap={6}>
-                      {passwordChecks.length ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#f87171" />}
-                      <Text size="xs" c={passwordChecks.length ? '#4ade80' : '#f87171'}>Минимум 8 символов (обязательно)</Text>
-                    </Group>
-                    <Group gap={6}>
-                      {passwordChecks.uppercase ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
-                      <Text size="xs" c={passwordChecks.uppercase ? '#4ade80' : '#94a3b8'}>Заглавная буква (рекомендуется)</Text>
-                    </Group>
-                    <Group gap={6}>
-                      {passwordChecks.lowercase ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
-                      <Text size="xs" c={passwordChecks.lowercase ? '#4ade80' : '#94a3b8'}>Строчная буква (рекомендуется)</Text>
-                    </Group>
-                    <Group gap={6}>
-                      {passwordChecks.number ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
-                      <Text size="xs" c={passwordChecks.number ? '#4ade80' : '#94a3b8'}>Цифра (рекомендуется)</Text>
-                    </Group>
-                    <Group gap={6}>
-                      {passwordChecks.special ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
-                      <Text size="xs" c={passwordChecks.special ? '#4ade80' : '#94a3b8'}>Спецсимвол (рекомендуется)</Text>
-                    </Group>
-                  </Stack>
-                </Box>
-              )}
+                )}
+              </Stack>
             </Box>
 
-            <PasswordInput
-              label="Подтверждение пароля"
-              placeholder="Повторите пароль"
-              leftSection={<IconLock size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('confirmPassword')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
-            {/* Passwords match indicator */}
-            {form.values.confirmPassword.length > 0 && (
-              <Group gap={8} align="center" mt={6}>
-                {(form.values.password && form.values.password === form.values.confirmPassword) ? (
-                  <>
-                    <IconCheck size={14} color="#4ade80" />
-                    <Text size="xs" c="#4ade80">Пароли совпадают</Text>
-                  </>
-                ) : (
-                  <>
-                    <IconX size={14} color="#f87171" />
-                    <Text size="xs" c="#f87171">Пароли не совпадают</Text>
-                  </>
+            {/* Безопасность */}
+            <Box
+              style={{
+                border: '1px solid rgba(212,137,79,0.06)',
+                padding: 12,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, rgba(212,137,79,0.04), rgba(212,137,79,0.01))',
+              }}
+            >
+              <Title order={5} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f', marginBottom: 12 }}>Безопасность</Title>
+              <Stack gap="sm">
+                <Box>
+                  <PasswordInput
+                    label="Пароль"
+                    placeholder="Минимум 8 символов"
+                    leftSection={<IconLock size={16} style={{ color: '#d4894f' }} />}
+                    {...form.getInputProps('password')}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      form.setFieldValue('password', e.target.value);
+                    }}
+                    size="md"
+                    styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                  />
+                  {password && (
+                    <Box mt="xs">
+                      <Group gap="xs" mb={6}>
+                        <Text size="xs" c="#e8dcc8">Надёжность пароля:</Text>
+                        <Text size="xs" fw={600} c={getStrengthColor()}>
+                          {passwordStrength < 25 ? 'Слабый' : passwordStrength < 50 ? 'Средний' : passwordStrength < 75 ? 'Хороший' : 'Отличный'}
+                        </Text>
+                      </Group>
+                      <Progress value={passwordStrength} color={getStrengthColor()} size="sm" mb="xs" />
+                      <Stack gap={4}>
+                        <Group gap={6}>
+                          {passwordChecks.length ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#f87171" />}
+                          <Text size="xs" c={passwordChecks.length ? '#4ade80' : '#f87171'}>Минимум 8 символов (обязательно)</Text>
+                        </Group>
+                        <Group gap={6}>
+                          {passwordChecks.uppercase ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
+                          <Text size="xs" c={passwordChecks.uppercase ? '#4ade80' : '#94a3b8'}>Заглавная буква (рекомендуется)</Text>
+                        </Group>
+                        <Group gap={6}>
+                          {passwordChecks.lowercase ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
+                          <Text size="xs" c={passwordChecks.lowercase ? '#4ade80' : '#94a3b8'}>Строчная буква (рекомендуется)</Text>
+                        </Group>
+                        <Group gap={6}>
+                          {passwordChecks.number ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
+                          <Text size="xs" c={passwordChecks.number ? '#4ade80' : '#94a3b8'}>Цифра (рекомендуется)</Text>
+                        </Group>
+                        <Group gap={6}>
+                          {passwordChecks.special ? <IconCheck size={14} color="#4ade80" /> : <IconX size={14} color="#94a3b8" />}
+                          <Text size="xs" c={passwordChecks.special ? '#4ade80' : '#94a3b8'}>Спецсимвол (рекомендуется)</Text>
+                        </Group>
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
+
+                <PasswordInput
+                  label="Подтверждение пароля"
+                  placeholder="Повторите пароль"
+                  leftSection={<IconLock size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('confirmPassword')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
+                {/* Passwords match indicator */}
+                {form.values.confirmPassword.length > 0 && (
+                  <Group gap={8} align="center" mt={6}>
+                    {(form.values.password && form.values.password === form.values.confirmPassword) ? (
+                      <>
+                        <IconCheck size={14} color="#4ade80" />
+                        <Text size="xs" c="#4ade80">Пароли совпадают</Text>
+                      </>
+                    ) : (
+                      <>
+                        <IconX size={14} color="#f87171" />
+                        <Text size="xs" c="#f87171">Пароли не совпадают</Text>
+                      </>
+                    )}
+                  </Group>
                 )}
-              </Group>
-            )}
+              </Stack>
+            </Box>
 
-            <TextInput
-              label="Фамилия"
-              placeholder="Иванов"
-              leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('lastname')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
+            <Box
+              style={{
+                border: '1px solid rgba(212,137,79,0.06)',
+                padding: 12,
+                borderRadius: 8,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00))',
+              }}
+            >
+              <Title order={4} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f', marginBottom: 8 }}>Данные для доставки</Title>
+              <Stack gap="sm">
+                <TextInput
+                  label="Фамилия"
+                  placeholder="Иванов"
+                  leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('lastname')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
 
-            <TextInput
-              label="Имя"
-              placeholder="Иван"
-              leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('firstname')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
+                <TextInput
+                  label="Имя"
+                  placeholder="Иван"
+                  leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('firstname')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
 
-            <TextInput
-              label="Отчество (необязательно)"
-              placeholder="Иванович"
-              leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
-              {...form.getInputProps('middlename')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
+                <TextInput
+                  label="Отчество (необязательно)"
+                  placeholder="Иванович"
+                  leftSection={<IconUser size={16} style={{ color: '#d4894f' }} />}
+                  {...form.getInputProps('middlename')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
 
-            <TextInput
-              label="Адрес доставки"
-              placeholder="г. Москва, ул. Пушкина, д. 10, кв. 5"
-              {...form.getInputProps('address')}
-              size="md"
-              styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
-            />
+                <TextInput
+                  label="Адрес доставки"
+                  placeholder="г. Москва, ул. Пушкина, д. 10, кв. 5"
+                  {...form.getInputProps('address')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
+
+                <TextInput
+                  label="Почтовый индекс"
+                  placeholder="123456"
+                  {...form.getInputProps('postal_code')}
+                  size="md"
+                  styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                />
+
+                <Box>
+                  <TextInput
+                    label="Номер телефона"
+                    placeholder="+7 (999) 123-45-67"
+                    {...form.getInputProps('phone_number')}
+                    size="md"
+                    styles={{ input: { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(212,137,79,0.08)', color: '#fbf6ee' }, label: { color: '#e8dcc8' } }}
+                  />
+                  {form.values.phone_number.length > 0 && (
+                    <Group gap={8} align="center" mt={6}>
+                      {/^\+?7/.test(form.values.phone_number.replace(/\D/g, '')) && form.values.phone_number.replace(/\D/g, '').length >= 11 ? (
+                        <>
+                          <IconCheck size={14} color="#4ade80" />
+                          <Text size="xs" c="#4ade80">Номер корректен</Text>
+                        </>
+                      ) : (
+                        <>
+                          <IconX size={14} color="#f87171" />
+                          <Text size="xs" c="#f87171">
+                            {!/^\+?7/.test(form.values.phone_number.replace(/\D/g, '')) 
+                              ? 'Номер должен начинаться с +7'
+                              : 'Неполный номер'}
+                          </Text>
+                        </>
+                      )}
+                    </Group>
+                  )}
+                </Box>
+              </Stack>
+            </Box>
 
             <TextInput
               label="Дата рождения (необязательно)"
@@ -406,6 +496,75 @@ export default function RegisterPage() {
             </Text>
           </Box>
         </ScrollArea>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        opened={successModalOpened}
+        onClose={() => {
+          setSuccessModalOpened(false);
+          router.push('/login');
+        }}
+        title="Регистрация успешна!"
+        centered
+        size="md"
+        styles={{
+          content: {
+            background: 'linear-gradient(180deg, rgba(36,24,14,0.98), rgba(22,16,12,0.99))',
+            border: '1px solid rgba(212,137,79,0.2)',
+          },
+          header: {
+            background: 'transparent',
+            color: '#fbf6ee',
+          },
+          title: {
+            fontFamily: 'Georgia, serif',
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: '#fbf6ee',
+          },
+        }}
+      >
+        <Stack gap="lg">
+          <Box ta="center">
+            <Box
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                background: 'rgba(74, 222, 128, 0.1)',
+                border: '2px solid #4ade80',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem',
+              }}
+            >
+              <IconCheck size={48} style={{ color: '#4ade80' }} />
+            </Box>
+            <Text size="lg" fw={600} mb="sm" style={{ color: '#fbf6ee' }}>
+              Добро пожаловать в LocalTea!
+            </Text>
+            <Text size="sm" c="#e8dcc8" mb="lg">
+              На вашу почту отправлено письмо с подтверждением.
+              <br />
+              Пожалуйста, проверьте папку "Входящие" и следуйте инструкциям в письме.
+            </Text>
+          </Box>
+          
+          <Button
+            fullWidth
+            variant="gradient"
+            gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+            onClick={() => {
+              setSuccessModalOpened(false);
+              router.push('/login');
+            }}
+            style={{ color: '#fff' }}
+          >
+            Перейти на страницу входа
+          </Button>
+        </Stack>
       </Modal>
     </Container>
   );

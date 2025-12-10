@@ -65,6 +65,7 @@ export function Footer() {
             <FooterLink href="/catalog">Каталог</FooterLink>
             <FooterLink href="/blog">Блог</FooterLink>
             <FooterLink href="/about">О нас</FooterLink>
+            
           </Stack>
 
           {/* Categories */}
@@ -99,7 +100,9 @@ export function Footer() {
               >
                 +7 (900) 123-45-67
               </Anchor>
+              
             </Group>
+            <FooterLink href="/for-business" style={{ color: '#ff8c00' }}>Для юридических лиц</FooterLink>
           </Stack>
         </Group>
 
@@ -127,24 +130,43 @@ export function Footer() {
 function FooterLink({ 
   href, 
   children, 
-  size = 'sm' 
+  size = 'sm',
+  style,
+  ...rest
 }: { 
   href: string; 
   children: React.ReactNode; 
-  size?: 'xs' | 'sm' 
+  size?: 'xs' | 'sm';
+  style?: React.CSSProperties;
+  [key: string]: any;
 }) {
+  const mergedStyle: React.CSSProperties = {
+    color: colors.textSecondary,
+    transition: 'color 0.2s',
+    textDecoration: 'none',
+    ...(style || {}),
+  };
+
+  // preserve the base color (either passed via props or default)
+  const baseColor = (mergedStyle.color as string) || colors.textSecondary;
+
+  // make links visually stand out by default (semibold)
+  mergedStyle.fontWeight = (mergedStyle.fontWeight as any) || 600;
+
   return (
-    <Anchor 
-      component={Link} 
-      href={href} 
+    <Anchor
+      component={Link}
+      href={href}
       size={size}
-      style={{ 
-        color: colors.textSecondary, 
-        transition: 'color 0.2s',
-        textDecoration: 'none',
+      {...rest}
+      style={mergedStyle}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.color = colors.accent;
       }}
-      onMouseEnter={(e) => e.currentTarget.style.color = colors.accent}
-      onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
+      onMouseLeave={(e) => {
+        // restore the original color passed via props (or default)
+        (e.currentTarget as HTMLElement).style.color = baseColor;
+      }}
     >
       {children}
     </Anchor>

@@ -20,14 +20,18 @@ import {
   Textarea,
   Alert,
   Loader,
+  Badge,
 } from '@mantine/core';
-import { IconUser, IconHeart, IconShoppingBag, IconSettings, IconLogout, IconAlertCircle, IconUpload, IconPhoto, IconX, IconMail, IconAt, IconCheck } from '@tabler/icons-react';
+import { IconUser, IconHeart, IconShoppingBag, IconSettings, IconLogout, IconAlertCircle, IconUpload, IconPhoto, IconX, IconMail, IconAt, IconCheck, IconPhone, IconPhoneOff } from '@tabler/icons-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useAuthStore } from '@/store';
 import { useEffect, useState, useRef, Suspense } from 'react';
-import { userApi } from '@/lib/api';
+import { userApi, orderApi } from '@/lib/api';
 import { notifications } from '@mantine/notifications';
 import Image from 'next/image';
+import DeliveryDataBanner from '@/components/DeliveryDataBanner';
+import PhoneVerificationModal from '@/components/PhoneVerificationModal';
 
 function ProfilePageContent() {
   const router = useRouter();
@@ -39,6 +43,11 @@ function ProfilePageContent() {
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [phoneVerificationModalOpen, setPhoneVerificationModalOpen] = useState(false);
+  
+  // Orders state
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   
   // Read tab from URL query params
   const tabFromUrl = searchParams.get('tab');
@@ -51,6 +60,24 @@ function ProfilePageContent() {
       setActiveTab(tab);
     }
   }, [searchParams]);
+  
+  // Load orders when orders tab is active
+  useEffect(() => {
+    const loadOrders = async () => {
+      if (activeTab === 'orders' && user) {
+        setOrdersLoading(true);
+        try {
+          const response = await orderApi.getOrders();
+          setOrders(response.data || []);
+        } catch (error) {
+          console.error('Failed to load orders:', error);
+        } finally {
+          setOrdersLoading(false);
+        }
+      }
+    };
+    loadOrders();
+  }, [activeTab, user]);
   
   const handleTabChange = (value: string | null) => {
     setActiveTab(value);
@@ -262,6 +289,50 @@ function ProfilePageContent() {
     }
   };
 
+  const handleUpdatePostalCode = async () => {
+    try {
+      setIsUpdating(true);
+      await userApi.updatePostalCode({ postal_code: formData.postal_code || '' });
+      await checkAuth();
+      setEditModal(null);
+      notifications.show({
+        title: 'Успешно',
+        message: 'Почтовый индекс обновлен',
+        color: 'green',
+      });
+    } catch (error: any) {
+      notifications.show({
+        title: 'Ошибка',
+        message: error.response?.data?.detail || 'Не удалось обновить почтовый индекс',
+        color: 'red',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdatePhoneNumber = async () => {
+    try {
+      setIsUpdating(true);
+      await userApi.updatePhoneNumber({ phone_number: formData.phone_number || '' });
+      await checkAuth();
+      setEditModal(null);
+      notifications.show({
+        title: 'Успешно',
+        message: 'Номер телефона обновлен. Пожалуйста, подтвердите новый номер телефона.',
+        color: 'blue',
+      });
+    } catch (error: any) {
+      notifications.show({
+        title: 'Ошибка',
+        message: error.response?.data?.detail || 'Не удалось обновить номер телефона',
+        color: 'red',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleUploadAvatar = async () => {
     const file = formData.avatarFile;
     if (!file) return;
@@ -368,6 +439,34 @@ function ProfilePageContent() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      setIsUpdating(true);
+      if (!formData.deletePassword) {
+        throw new Error('Введите пароль для подтверждения');
+      }
+      await userApi.deleteAccount(formData.deletePassword);
+      setEditModal(null);
+      setFormData({});
+      notifications.show({
+        title: 'Аккаунт удалён',
+        message: 'Ваш аккаунт успешно удалён',
+        color: 'green',
+      });
+      // Выходим и редиректим на главную
+      await logout();
+      router.push('/');
+    } catch (error: any) {
+      notifications.show({
+        title: 'Ошибка',
+        message: error.response?.data?.detail || error.message || 'Не удалось удалить аккаунт',
+        color: 'red',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <Container size="lg" py="xl">
       {/* Header */}
@@ -420,6 +519,14 @@ function ProfilePageContent() {
         </Group>
       </Card>
 
+      {/* Delivery Data Banner */}
+      {user && (
+        <DeliveryDataBanner
+          user={user}
+          onVerifyPhone={() => setPhoneVerificationModalOpen(true)}
+        />
+      )}
+
       {/* Tabs */}
       <Tabs value={activeTab} onChange={handleTabChange} styles={{
         tab: {
@@ -445,79 +552,354 @@ function ProfilePageContent() {
         </Tabs.List>
 
         <Tabs.Panel value="profile">
-          <Card
-            p="xl"
-            radius="lg"
-            style={{
-              background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
-              border: '1px solid rgba(212,137,79,0.08)',
-              boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
-            }}
-          >
-            <Title order={4} mb="lg" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Личная информация</Title>
+          <Stack gap="lg">
+            {/* Учетные данные */}
+            <Card
+              p="xl"
+              radius="lg"
+              style={{
+                background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                border: '1px solid rgba(212,137,79,0.08)',
+                boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+              }}
+            >
+              <Title order={4} mb="lg" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Учетные данные</Title>
 
-            <Stack gap="md">
-              <Group grow>
-                <Box>
-                  <Text fw={600} size="sm" mb="xs" style={{ color: '#e8dcc8' }}>Имя</Text>
-                  <Text style={{ color: '#fbf6ee' }}>{user.firstname || 'Не указано'}</Text>
+              <Stack gap="md">
+                <Group grow>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Имя пользователя</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.username}</Text>
+                  </Box>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Email</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.email}</Text>
+                  </Box>
+                </Group>
+              </Stack>
+            </Card>
+
+            {/* Личная информация */}
+            <Card
+              p="xl"
+              radius="lg"
+              style={{
+                background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                border: '1px solid rgba(212,137,79,0.08)',
+                boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+              }}
+            >
+              <Title order={4} mb="lg" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Личная информация</Title>
+
+              <Stack gap="md">
+                <Group grow>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Фамилия</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.lastname || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
+                  </Box>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Имя</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.firstname || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
+                  </Box>
+                </Group>
+
+                <Group grow>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Отчество</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.middlename || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
+                  </Box>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Дата рождения</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>
+                      {user.birthdate 
+                        ? new Date(user.birthdate).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })
+                        : <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}
+                    </Text>
+                  </Box>
+                </Group>
+              </Stack>
+            </Card>
+
+            {/* Данные для доставки */}
+            <Card
+              p="xl"
+              radius="lg"
+              style={{
+                background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                border: '1px solid rgba(212,137,79,0.08)',
+                boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+              }}
+            >
+              <Title order={4} mb="lg" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Данные для доставки</Title>
+
+              <Stack gap="md">
+                <Box
+                  p="md"
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(212,137,79,0.1)',
+                  }}
+                >
+                  <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Адрес доставки</Text>
+                  <Text fw={600} style={{ color: '#fbf6ee' }}>{user.address || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
                 </Box>
-                <Box>
-                  <Text fw={600} size="sm" mb="xs" style={{ color: '#e8dcc8' }}>Фамилия</Text>
-                  <Text style={{ color: '#fbf6ee' }}>{user.lastname || 'Не указано'}</Text>
-                </Box>
-              </Group>
 
-              <Box>
-                <Text fw={600} size="sm" mb="xs" style={{ color: '#e8dcc8' }}>Email</Text>
-                <Text style={{ color: '#fbf6ee' }}>{user.email}</Text>
-              </Box>
+                <Group grow>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Почтовый индекс</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.postal_code || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
+                  </Box>
+                  <Box
+                    p="md"
+                    style={{
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(212,137,79,0.1)',
+                    }}
+                  >
+                    <Text size="xs" fw={600} mb="xs" style={{ color: '#d4894f', textTransform: 'uppercase' }}>Телефон</Text>
+                    <Text fw={600} style={{ color: '#fbf6ee' }}>{user.phone_number || <span style={{ color: '#a89880', fontStyle: 'italic' }}>Не указано</span>}</Text>
+                  </Box>
+                </Group>
+              </Stack>
+            </Card>
 
-              <Box>
-                <Text fw={600} size="sm" mb="xs" style={{ color: '#e8dcc8' }}>Имя пользователя</Text>
-                <Text style={{ color: '#fbf6ee' }}>{user.username}</Text>
-              </Box>
-
-              <Box>
-                <Text fw={600} size="sm" mb="xs" style={{ color: '#e8dcc8' }}>Адрес</Text>
-                <Text style={{ color: '#fbf6ee' }}>{user.address || 'Не указано'}</Text>
-              </Box>
-            </Stack>
-
-            <Divider my="xl" color="dark.5" />
-
-            <Text size="sm" mb="md" style={{ color: '#e8dcc8' }}>
-              Для редактирования личной информации перейдите в раздел "Настройки"
-            </Text>
-          </Card>
+            <Box style={{ textAlign: 'center' }}>
+              <Button
+                component={Link}
+                href="/profile?tab=settings"
+                variant="gradient"
+                gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+                style={{ color: '#fbf6ee' }}
+              >
+                Отредактировать данные
+              </Button>
+            </Box>
+          </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="orders">
-          <Card
-            p="xl"
-            radius="lg"
-            ta="center"
-            style={{
-              background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
-              border: '1px solid rgba(212,137,79,0.08)',
-              boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
-            }}
-          >
-            <IconShoppingBag size={60} style={{ opacity: 0.15, marginBottom: 16, color: '#d4894f' }} />
-            <Title order={4} mb="xs" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Заказов пока нет</Title>
-            <Text mb="lg" style={{ color: '#e8dcc8' }}>
-              Сделайте первый заказ в нашем магазине
-            </Text>
-            <Button
-              component="a"
-              href="/catalog"
-              variant="gradient"
-              gradient={{ from: '#d4894f', to: '#8b5a2b' }}
-              style={{ color: '#fff' }}
+          {ordersLoading ? (
+            <Card
+              p="xl"
+              radius="lg"
+              ta="center"
+              style={{
+                background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                border: '1px solid rgba(212,137,79,0.08)',
+                boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+              }}
             >
-              Перейти в каталог
-            </Button>
-          </Card>
+              <Loader color="#d4894f" size="lg" />
+              <Text mt="md" style={{ color: '#e8dcc8' }}>Загрузка заказов...</Text>
+            </Card>
+          ) : orders.length === 0 ? (
+            <Card
+              p="xl"
+              radius="lg"
+              ta="center"
+              style={{
+                background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                border: '1px solid rgba(212,137,79,0.08)',
+                boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+              }}
+            >
+              <IconShoppingBag size={60} style={{ opacity: 0.15, marginBottom: 16, color: '#d4894f' }} />
+              <Title order={4} mb="xs" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>Заказов пока нет</Title>
+              <Text mb="lg" style={{ color: '#e8dcc8' }}>
+                Сделайте первый заказ в нашем магазине
+              </Text>
+              <Button
+                component="a"
+                href="/catalog"
+                variant="gradient"
+                gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+                style={{ color: '#fff' }}
+              >
+                Перейти в каталог
+              </Button>
+            </Card>
+          ) : (
+            <Stack gap="md">
+              {orders.map((order) => {
+                const statusLabels: Record<string, { label: string; color: string }> = {
+                  awaiting_payment: { label: 'Ожидает оплаты', color: 'yellow' },
+                  paid: { label: 'Оплачен', color: 'blue' },
+                  processing: { label: 'Собирается', color: 'cyan' },
+                  shipped: { label: 'Передан в доставку', color: 'grape' },
+                  delivered: { label: 'Доставлен', color: 'green' },
+                  cancelled: { label: 'Отменён', color: 'red' },
+                };
+                const deliveryLabels: Record<string, string> = {
+                  pickup: 'Самовывоз',
+                  russian_post: 'Почта России',
+                };
+                const status = statusLabels[order.status] || { label: order.status, color: 'gray' };
+                const delivery = deliveryLabels[order.delivery_method] || order.delivery_method;
+                const totalWithDelivery = order.total_amount_cents + (order.delivery_cost_cents || 0);
+                
+                return (
+                  <Card
+                    key={order.id}
+                    p="lg"
+                    radius="lg"
+                    style={{
+                      background: 'linear-gradient(180deg, rgba(36,24,14,0.94), rgba(22,16,12,0.98))',
+                      border: '1px solid rgba(212,137,79,0.08)',
+                      boxShadow: '0 10px 30px rgba(6,4,3,0.5)',
+                    }}
+                  >
+                    <Group justify="space-between" mb="md">
+                      <Group gap="sm">
+                        <Text fw={600} style={{ color: '#fbf6ee' }}>Заказ #{order.id}</Text>
+                        <Badge color={status.color} variant="light">{status.label}</Badge>
+                      </Group>
+                      <Text size="sm" style={{ color: 'rgba(232,220,200,0.6)' }}>
+                        {new Date(order.created_at).toLocaleDateString('ru-RU', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </Group>
+                    
+                    <Divider mb="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+                    
+                    {/* Order Items */}
+                    <Stack gap="xs" mb="md">
+                      {order.items?.map((item: any) => (
+                        <Group key={item.id} justify="space-between">
+                          <Text size="sm" style={{ color: '#e8dcc8' }}>
+                            {item.title} {item.sku_info && `(${item.sku_info})`} × {item.quantity}
+                          </Text>
+                          <Text size="sm" style={{ color: '#d4894f' }}>
+                            {(item.price_cents * item.quantity / 100).toLocaleString('ru-RU')} ₽
+                          </Text>
+                        </Group>
+                      ))}
+                    </Stack>
+                    
+                    <Divider mb="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+                    
+                    {/* Delivery & Total */}
+                    <Group justify="space-between" mb="xs">
+                      <Text size="sm" style={{ color: 'rgba(232,220,200,0.7)' }}>
+                        Доставка: {delivery}
+                      </Text>
+                      <Text size="sm" style={{ color: order.delivery_cost_cents > 0 ? '#e8dcc8' : '#4caf50' }}>
+                        {order.delivery_cost_cents > 0 ? `${(order.delivery_cost_cents / 100).toLocaleString('ru-RU')} ₽` : 'Бесплатно'}
+                      </Text>
+                    </Group>
+                    
+                    <Group justify="space-between">
+                      <Text fw={600} style={{ color: '#fbf6ee' }}>Итого</Text>
+                      <Text fw={700} size="lg" style={{ color: '#d4894f' }}>
+                        {(totalWithDelivery / 100).toLocaleString('ru-RU')} ₽
+                      </Text>
+                    </Group>
+                    
+                    {/* Tracking Number */}
+                    {order.tracking_number && (
+                      <>
+                        <Divider my="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+                        <Group gap="xs">
+                          <Text size="sm" style={{ color: 'rgba(232,220,200,0.7)' }}>Трек-номер:</Text>
+                          <Text size="sm" fw={500} style={{ color: '#d4894f' }}>{order.tracking_number}</Text>
+                        </Group>
+                      </>
+                    )}
+                    
+                    {/* Payment button for awaiting payment orders */}
+                    {order.status === 'awaiting_payment' && (
+                      <>
+                        <Divider my="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+                        <Button
+                          variant="gradient"
+                          gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+                          fullWidth
+                          onClick={async () => {
+                            try {
+                              // Get fresh payment URL
+                              const response = await orderApi.getOrder(order.id);
+                              if (response.data.payment_url) {
+                                window.location.href = response.data.payment_url;
+                              } else {
+                                notifications.show({
+                                  title: 'Ошибка',
+                                  message: 'Не удалось получить ссылку на оплату',
+                                  color: 'red',
+                                });
+                              }
+                            } catch (error) {
+                              notifications.show({
+                                title: 'Ошибка',
+                                message: 'Не удалось загрузить данные заказа',
+                                color: 'red',
+                              });
+                            }
+                          }}
+                        >
+                          Оплатить заказ
+                        </Button>
+                      </>
+                    )}
+                  </Card>
+                );
+              })}
+            </Stack>
+          )}
         </Tabs.Panel>
 
         <Tabs.Panel value="favorites">
@@ -725,6 +1107,40 @@ function ProfilePageContent() {
                   </Group>
                 </Box>
 
+                {/* Postal Code */}
+                <Box
+                  p="md"
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(212,137,79,0.1)',
+                  }}
+                >
+                  <Group justify="space-between">
+                    <Box style={{ flex: 1 }}>
+                      <Text size="sm" style={{ color: '#e8dcc8' }}>Почтовый индекс</Text>
+                      <Text fw={600} style={{ wordBreak: 'break-word', color: '#fbf6ee' }}>
+                        {user.postal_code || '—'}
+                      </Text>
+                    </Box>
+                    <Button
+                      variant="light"
+                      size="xs"
+                      style={{ 
+                        background: 'rgba(212,137,79,0.15)',
+                        color: '#d4894f',
+                        border: 'none',
+                      }}
+                      onClick={() => {
+                        setFormData({ postal_code: user.postal_code || '' });
+                        setEditModal('postal_code');
+                      }}
+                    >
+                      Изменить
+                    </Button>
+                  </Group>
+                </Box>
+
                 {/* Avatar */}
                 <Box
                   p="md"
@@ -818,6 +1234,53 @@ function ProfilePageContent() {
                   </Group>
                 </Box>
 
+                {/* Phone */}
+                <Box
+                  p="md"
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(212,137,79,0.1)',
+                  }}
+                >
+                  <Group justify="space-between" align="flex-start">
+                    <Box style={{ flex: 1 }}>
+                      <Group gap="xs" mb={4}>
+                        <IconPhone size={16} style={{ color: '#d4894f' }} />
+                        <Text size="sm" style={{ color: '#e8dcc8' }}>Телефон</Text>
+                      </Group>
+                      <Text fw={600} style={{ color: '#fbf6ee' }}>{user.phone_number || '—'}</Text>
+                      {user.phone_number && (
+                        user.is_phone_confirmed ? (
+                          <Group gap={4} mt={4}>
+                            <IconCheck size={14} style={{ color: '#4ade80' }} />
+                            <Text size="xs" style={{ color: '#4ade80' }}>Подтверждён</Text>
+                          </Group>
+                        ) : (
+                          <Text size="xs" mt={4} style={{ color: '#fbbf24' }}>
+                            ⚠️ Не подтверждён — подтвердите номер
+                          </Text>
+                        )
+                      )}
+                    </Box>
+                    <Button
+                      variant="light"
+                      size="xs"
+                      style={{ 
+                        background: 'rgba(212,137,79,0.15)',
+                        color: '#d4894f',
+                        border: 'none',
+                      }}
+                      onClick={() => {
+                        setFormData({ phone_number: user.phone_number || '' });
+                        setEditModal('phone_number');
+                      }}
+                    >
+                      {user.phone_number ? 'Изменить' : 'Добавить'}
+                    </Button>
+                  </Group>
+                </Box>
+
                 {/* Username */}
                 <Box
                   p="md"
@@ -892,7 +1355,14 @@ function ProfilePageContent() {
                   <Text fw={600} mb="xs" c="red">
                     Опасная зона
                   </Text>
-                  <Button variant="subtle" color="red">
+                  <Button 
+                    variant="subtle" 
+                    color="red"
+                    onClick={() => {
+                      setFormData({});
+                      setEditModal('delete');
+                    }}
+                  >
                     Удалить аккаунт
                   </Button>
                 </Box>
@@ -1058,6 +1528,68 @@ function ProfilePageContent() {
               Отмена
             </Button>
             <Button onClick={handleUpdateAddress} loading={isUpdating} variant="gradient" gradient={{ from: '#d4894f', to: '#8b5a2b' }} style={{ color: '#fff' }}>
+              Сохранить
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Postal Code Modal */}
+      <Modal
+        opened={editModal === 'postal_code'}
+        onClose={() => setEditModal(null)}
+        title="Изменить почтовый индекс"
+        centered
+        styles={{
+          content: { background: 'linear-gradient(180deg, rgba(36,24,14,0.98), rgba(22,16,12,0.99))', border: '1px solid rgba(212,137,79,0.2)' },
+          header: { background: 'transparent', color: '#fbf6ee' },
+          title: { fontFamily: 'Georgia, serif', color: '#fbf6ee' },
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Почтовый индекс"
+            placeholder="123456"
+            value={formData.postal_code || ''}
+            onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+            styles={{ input: { background: 'rgba(255,255,255,0.05)', color: '#fbf6ee', borderColor: 'rgba(212,137,79,0.2)' }, label: { color: '#e8dcc8' } }}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setEditModal(null)} style={{ color: '#e8dcc8' }}>
+              Отмена
+            </Button>
+            <Button onClick={handleUpdatePostalCode} loading={isUpdating} variant="gradient" gradient={{ from: '#d4894f', to: '#8b5a2b' }} style={{ color: '#fff' }}>
+              Сохранить
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Phone Number Modal */}
+      <Modal
+        opened={editModal === 'phone_number'}
+        onClose={() => setEditModal(null)}
+        title="Изменить номер телефона"
+        centered
+        styles={{
+          content: { background: 'linear-gradient(180deg, rgba(36,24,14,0.98), rgba(22,16,12,0.99))', border: '1px solid rgba(212,137,79,0.2)' },
+          header: { background: 'transparent', color: '#fbf6ee' },
+          title: { fontFamily: 'Georgia, serif', color: '#fbf6ee' },
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Номер телефона"
+            placeholder="+7 (999) 123-45-67"
+            value={formData.phone_number || ''}
+            onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+            styles={{ input: { background: 'rgba(255,255,255,0.05)', color: '#fbf6ee', borderColor: 'rgba(212,137,79,0.2)' }, label: { color: '#e8dcc8' } }}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setEditModal(null)} style={{ color: '#e8dcc8' }}>
+              Отмена
+            </Button>
+            <Button onClick={handleUpdatePhoneNumber} loading={isUpdating} variant="gradient" gradient={{ from: '#d4894f', to: '#8b5a2b' }} style={{ color: '#fff' }}>
               Сохранить
             </Button>
           </Group>
@@ -1338,6 +1870,69 @@ function ProfilePageContent() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Delete Account Modal */}
+      <Modal
+        opened={editModal === 'delete'}
+        onClose={() => setEditModal(null)}
+        title="Удалить аккаунт"
+        centered
+        styles={{
+          content: { background: 'linear-gradient(180deg, rgba(36,24,14,0.98), rgba(22,16,12,0.99))', border: '1px solid rgba(212,137,79,0.2)' },
+          header: { background: 'transparent', color: '#fbf6ee' },
+          title: { fontFamily: 'Georgia, serif', color: '#fbf6ee' },
+        }}
+      >
+        <Stack gap="md">
+          <Alert 
+            icon={<IconAlertCircle size={16} />} 
+            color="red"
+            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#e8dcc8' }} 
+            title="Внимание!"
+          >
+            Это действие необратимо. Все ваши данные будут удалены безвозвратно.
+          </Alert>
+          <PasswordInput
+            label="Введите пароль для подтверждения"
+            placeholder="Ваш текущий пароль"
+            value={formData.deletePassword || ''}
+            onChange={(e) => setFormData({ ...formData, deletePassword: e.target.value })}
+            styles={{ 
+              input: { 
+                background: 'rgba(255,255,255,0.05)', 
+                color: '#fbf6ee', 
+                borderColor: 'rgba(239,68,68,0.3)' 
+              }, 
+              label: { color: '#e8dcc8' } 
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setEditModal(null)} style={{ color: '#e8dcc8' }}>
+              Отмена
+            </Button>
+            <Button 
+              onClick={handleDeleteAccount} 
+              loading={isUpdating} 
+              color="red"
+              disabled={!formData.deletePassword}
+            >
+              Удалить аккаунт
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Phone Verification Modal */}
+      {user && (
+        <PhoneVerificationModal
+          opened={phoneVerificationModalOpen}
+          onClose={() => setPhoneVerificationModalOpen(false)}
+          phoneNumber={user.phone_number || ''}
+          onSuccess={() => {
+            checkAuth();
+          }}
+        />
+      )}
     </Container>
   );
 }

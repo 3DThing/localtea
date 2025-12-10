@@ -11,8 +11,11 @@ interface User {
   middlename?: string;
   birthdate?: string;
   address?: string;
+  postal_code?: string;
+  phone_number?: string;
   avatar_url?: string;
   is_email_confirmed: boolean;
+  is_phone_confirmed: boolean;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -34,6 +37,8 @@ interface AuthState {
       lastname?: string;
       middlename?: string;
       address?: string;
+      postal_code?: string;
+      phone_number?: string;
       birthdate?: string;
     }
   ) => Promise<void>;
@@ -215,16 +220,44 @@ export const useCartStore = create<CartState>((set) => ({
   },
 
   updateItem: async (itemId: number, quantity: number) => {
-    set({ isLoading: true });
+    // Оптимистичное обновление - сразу обновляем UI
+    set((state) => {
+      const updatedItems = state.items.map(item => {
+        if (item.id === itemId) {
+          const newTotal = item.sku.price_cents * quantity;
+          return { ...item, quantity, total_cents: newTotal };
+        }
+        return item;
+      });
+      const newTotal = updatedItems.reduce((sum, item) => sum + item.total_cents, 0);
+      return { items: updatedItems, totalAmount: newTotal };
+    });
+
     try {
       const response = await cartApi.updateItem(itemId, { quantity });
-      set({ 
-        items: response.data.items || [], 
-        totalAmount: response.data.total_amount_cents || 0,
-        isLoading: false 
+      // Синхронизируем с сервером, но сохраняем порядок
+      set((state) => {
+        const serverItems = response.data.items || [];
+        // Сохраняем текущий порядок, обновляя только данные
+        const orderedItems = state.items.map(item => {
+          const serverItem = serverItems.find(si => si.id === item.id);
+          return serverItem || item;
+        });
+        return { 
+          items: orderedItems,
+          totalAmount: response.data.total_amount_cents || 0,
+          isLoading: false 
+        };
       });
     } catch (error) {
+      // При ошибке откатываем изменения
       set({ isLoading: false });
+      // Перезагружаем корзину с сервера
+      const response = await cartApi.getCart();
+      set({ 
+        items: response.data.items || [], 
+        totalAmount: response.data.total_amount_cents || 0 
+      });
       throw error;
     }
   },

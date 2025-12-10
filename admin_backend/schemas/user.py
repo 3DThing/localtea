@@ -12,6 +12,8 @@ class UserAdminUpdate(BaseModel):
     middlename: Optional[str] = None
     birthdate: Optional[date] = None
     address: Optional[str] = None
+    postal_code: Optional[str] = None
+    phone_number: Optional[str] = None
     password: Optional[str] = None
     is_email_confirmed: Optional[bool] = None
 
@@ -28,6 +30,8 @@ class UserAdminResponse(BaseModel):
     middlename: Optional[str] = None
     birthdate: Optional[date] = None
     address: Optional[str] = None
+    postal_code: Optional[str] = None
+    phone_number: Optional[str] = None
     avatar_url: Optional[str] = None
     created_at: Optional[datetime] = None
     

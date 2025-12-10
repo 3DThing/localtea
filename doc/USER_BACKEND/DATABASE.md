@@ -159,6 +159,8 @@
 | `middlename` | String | Отчество. |
 | `birthdate` | Date | Дата рождения. |
 | `address` | String | Адрес доставки. |
+| `postal_code` | String | Почтовый индекс. |
+| `phone_number` | String | Номер телефона. |
 | `avatar_url` | String | Ссылка на аватар. |
 | `created_at` | DateTime | Дата регистрации (UTC). |
 | `updated_at` | DateTime | Дата последнего обновления профиля (UTC). |

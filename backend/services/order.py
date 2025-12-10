@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta, timezone
 
-from backend.models.order import Order, OrderItem, OrderStatus, Payment, PaymentStatus
+from backend.models.order import Order, OrderItem, OrderStatus, Payment, PaymentStatus, DeliveryMethod
 from backend.models.catalog import SKU
 from backend.models.cart import Cart
 from backend.schemas import order as order_schemas
@@ -65,13 +65,36 @@ class OrderService:
         # 3. Create Order
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
         
+        # Определяем метод доставки
+        delivery_method = DeliveryMethod.PICKUP
+        if checkout_in.delivery_method == "russian_post":
+            delivery_method = DeliveryMethod.RUSSIAN_POST
+            if not checkout_in.shipping_address:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Для доставки Почтой России необходимо указать адрес"
+                )
+        
+        # Подготовка данных адреса
+        shipping_address_data = None
+        if checkout_in.shipping_address:
+            shipping_address_data = checkout_in.shipping_address.model_dump()
+        
+        # Подготовка контактных данных
+        contact_info_data = checkout_in.contact_info.model_dump()
+        
+        # Стоимость доставки
+        delivery_cost = checkout_in.delivery_cost_cents if checkout_in.delivery_method == "russian_post" else 0
+        
         order = Order(
             user_id=user_id,
             session_id=session_id,
             status=OrderStatus.AWAITING_PAYMENT,
             total_amount_cents=total_amount,
-            shipping_address=checkout_in.shipping_address.model_dump(),
-            contact_info=checkout_in.contact_info.model_dump(),
+            delivery_cost_cents=delivery_cost,
+            delivery_method=delivery_method,
+            shipping_address=shipping_address_data,
+            contact_info=contact_info_data,
             expires_at=expires_at
         )
         db.add(order)
@@ -111,7 +134,8 @@ class OrderService:
         # 5. Clear Cart
         await cart_service.clear_cart(db, user_id, session_id)
         
-        # 6. Create Payment
+        # 6. Create Payment (товары + доставка)
+        total_with_delivery = order.total_amount_cents + order.delivery_cost_cents
         try:
             payment_data = await payment_service.create_payment(order, f"Order #{order.id}")
         except Exception as e:
@@ -122,7 +146,7 @@ class OrderService:
         payment = Payment(
             order_id=order.id,
             external_id=payment_data["payment_id"],
-            amount_cents=order.total_amount_cents,
+            amount_cents=total_with_delivery,
             status=PaymentStatus.PENDING,
             provider_response=payment_data
         )
@@ -177,6 +201,104 @@ class OrderService:
             
         result = await db.execute(query)
         return result.scalars().first()
+
+    async def get_payment_url(self, db: AsyncSession, order: Order) -> Optional[str]:
+        """Get existing payment URL or create new payment for order."""
+        # First, check if there's a pending payment and verify its status
+        result = await db.execute(
+            select(Payment)
+            .where(Payment.order_id == order.id)
+            .where(Payment.status == PaymentStatus.PENDING)
+        )
+        payment = result.scalars().first()
+        
+        if payment and payment.external_id:
+            # Check payment status with YooKassa
+            try:
+                status_data = await payment_service.check_payment(payment.external_id)
+                real_status = status_data.get("status")
+                
+                if real_status == "succeeded":
+                    # Update payment and order status
+                    payment.status = PaymentStatus.SUCCEEDED
+                    order.status = OrderStatus.PAID
+                    db.add(payment)
+                    db.add(order)
+                    await db.commit()
+                    return None  # No need to pay, already paid
+                elif real_status == "canceled":
+                    # Mark payment as failed, will create new one below
+                    payment.status = PaymentStatus.FAILED
+                    db.add(payment)
+                    await db.commit()
+                elif real_status == "pending" and payment.provider_response:
+                    # Still pending, return existing URL
+                    return payment.provider_response.get("payment_url")
+            except Exception as e:
+                print(f"Error checking payment status: {e}")
+                # If check fails, try to return existing URL
+                if payment.provider_response:
+                    return payment.provider_response.get("payment_url")
+        
+        # Create new payment if no valid pending payment exists
+        try:
+            total_with_delivery = order.total_amount_cents + (order.delivery_cost_cents or 0)
+            payment_data = await payment_service.create_payment(order, f"Order #{order.id}")
+            
+            new_payment = Payment(
+                order_id=order.id,
+                external_id=payment_data["payment_id"],
+                amount_cents=total_with_delivery,
+                status=PaymentStatus.PENDING,
+                provider_response=payment_data
+            )
+            db.add(new_payment)
+            await db.commit()
+            
+            return payment_data["payment_url"]
+        except Exception:
+            return None
+
+    async def check_and_update_order_status(self, db: AsyncSession, order: Order) -> Order:
+        """Check payment status and update order if paid."""
+        if order.status != OrderStatus.AWAITING_PAYMENT:
+            return order
+            
+        result = await db.execute(
+            select(Payment)
+            .where(Payment.order_id == order.id)
+            .where(Payment.status == PaymentStatus.PENDING)
+        )
+        payment = result.scalars().first()
+        
+        if payment and payment.external_id:
+            try:
+                status_data = await payment_service.check_payment(payment.external_id)
+                real_status = status_data.get("status")
+                
+                if real_status == "succeeded":
+                    payment.status = PaymentStatus.SUCCEEDED
+                    order.status = OrderStatus.PAID
+                    
+                    # Finalize stock
+                    result = await db.execute(select(OrderItem).where(OrderItem.order_id == order.id))
+                    items = result.scalars().all()
+                    for item in items:
+                        stmt = (
+                            update(SKU)
+                            .where(SKU.id == item.sku_id)
+                            .values(reserved_quantity=SKU.reserved_quantity - item.quantity)
+                        )
+                        await db.execute(stmt)
+                    
+                    db.add(payment)
+                    db.add(order)
+                    await db.commit()
+                    await db.refresh(order)
+            except Exception as e:
+                print(f"Error checking payment: {e}")
+        
+        return order
 
     async def cancel_order(
         self,

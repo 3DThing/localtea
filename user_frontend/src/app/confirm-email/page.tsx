@@ -12,8 +12,9 @@ import {
   Loader,
   ThemeIcon,
   Group,
+  TextInput,
 } from '@mantine/core';
-import { IconCheck, IconX, IconMail, IconArrowRight } from '@tabler/icons-react';
+import { IconCheck, IconX, IconMail, IconArrowRight, IconKey } from '@tabler/icons-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { userApi } from '@/lib/api';
@@ -25,17 +26,19 @@ function ConfirmEmailContent() {
   const { checkAuth, user } = useAuthStore();
   const token = searchParams.get('token');
   
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'idle'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [manualToken, setManualToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const confirmEmail = async () => {
       if (!token) {
-        setStatus('error');
-        setErrorMessage('Токен подтверждения не найден. Проверьте ссылку из письма.');
+        setStatus('idle');
         return;
       }
 
+      setStatus('loading');
       try {
         await userApi.confirmEmail(token);
         setStatus('success');
@@ -53,6 +56,31 @@ function ConfirmEmailContent() {
     confirmEmail();
   }, [token, user, checkAuth]);
 
+  const handleManualSubmit = async () => {
+    if (!manualToken.trim()) {
+      setErrorMessage('Введите токен подтверждения');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus('loading');
+    setErrorMessage('');
+
+    try {
+      await userApi.confirmEmail(manualToken.trim());
+      setStatus('success');
+      if (user) {
+        await checkAuth();
+      }
+    } catch (error: any) {
+      setStatus('error');
+      const message = error.response?.data?.detail || 'Не удалось подтвердить email. Проверьте правильность токена.';
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Container size={480} py={80}>
       <Card
@@ -65,6 +93,94 @@ function ConfirmEmailContent() {
           borderRadius: 16,
         }}
       >
+        {status === 'idle' && (
+          <Stack gap="xl" py="xl">
+            <Box ta="center">
+              <Box
+                mb="xl"
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(212,137,79,0.15), rgba(212,137,79,0.05))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto',
+                }}
+              >
+                <ThemeIcon
+                  size={60}
+                  radius="xl"
+                  variant="light"
+                  style={{ background: 'rgba(212,137,79,0.2)' }}
+                >
+                  <IconKey size={32} style={{ color: '#d4894f' }} />
+                </ThemeIcon>
+              </Box>
+              <Title order={2} mb="sm" style={{ color: '#fbf6ee', fontFamily: 'Georgia, serif' }}>
+                Подтверждение email
+              </Title>
+              <Text c="#e8dcc8" size="lg" mb="xl">
+                Введите токен подтверждения из письма
+              </Text>
+            </Box>
+
+            <TextInput
+              placeholder="Введите токен из письма"
+              size="lg"
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+              leftSection={<IconKey size={18} />}
+              error={errorMessage}
+              styles={{
+                input: {
+                  background: 'rgba(18,14,10,0.5)',
+                  border: '1px solid rgba(212,137,79,0.2)',
+                  color: '#fbf6ee',
+                  '&:focus': {
+                    borderColor: '#d4894f',
+                  },
+                },
+              }}
+            />
+
+            <Button
+              fullWidth
+              size="lg"
+              onClick={handleManualSubmit}
+              loading={isSubmitting}
+              variant="gradient"
+              gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+              style={{ color: '#fff', borderRadius: 10 }}
+            >
+              Подтвердить email
+            </Button>
+
+            <Group gap="md" justify="center">
+              <Button
+                component={Link}
+                href="/login"
+                size="md"
+                variant="subtle"
+                style={{ color: '#e8dcc8' }}
+              >
+                Войти в аккаунт
+              </Button>
+              <Button
+                component={Link}
+                href="/"
+                size="md"
+                variant="subtle"
+                style={{ color: '#e8dcc8' }}
+              >
+                На главную
+              </Button>
+            </Group>
+          </Stack>
+        )}
+
         {status === 'loading' && (
           <Stack align="center" gap="xl" py="xl">
             <Box
@@ -197,6 +313,42 @@ function ConfirmEmailContent() {
               </Text>
             </Box>
 
+            {!token && (
+              <>
+                <TextInput
+                  placeholder="Введите токен из письма"
+                  size="lg"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+                  leftSection={<IconKey size={18} />}
+                  style={{ width: '100%' }}
+                  styles={{
+                    input: {
+                      background: 'rgba(18,14,10,0.5)',
+                      border: '1px solid rgba(212,137,79,0.2)',
+                      color: '#fbf6ee',
+                      '&:focus': {
+                        borderColor: '#d4894f',
+                      },
+                    },
+                  }}
+                />
+
+                <Button
+                  fullWidth
+                  size="lg"
+                  onClick={handleManualSubmit}
+                  loading={isSubmitting}
+                  variant="gradient"
+                  gradient={{ from: '#d4894f', to: '#8b5a2b' }}
+                  style={{ color: '#fff', borderRadius: 10 }}
+                >
+                  Попробовать снова
+                </Button>
+              </>
+            )}
+
             <Group gap="md">
               <Button
                 component={Link}
@@ -246,7 +398,7 @@ function ConfirmEmailContent() {
               Не получили письмо?
             </Text>
             <Text size="sm" c="#e8dcc8">
-              Проверьте папку «Спам» или войдите в аккаунт, чтобы запросить повторную отправку письма с подтверждением.
+              Проверьте папку «Спам» или напишите в тех поддержку, чтобы запросить повторную отправку письма с подтверждением.
             </Text>
           </Box>
         </Group>

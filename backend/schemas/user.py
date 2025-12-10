@@ -13,6 +13,8 @@ class UserBase(BaseModel):
     middlename: Optional[str] = None
     birthdate: Optional[date] = None
     address: Optional[str] = None
+    postal_code: Optional[str] = None
+    phone_number: Optional[str] = None
     avatar_url: Optional[str] = None
 
 # Properties to receive via API on creation
@@ -25,6 +27,8 @@ class UserCreate(BaseModel):
     middlename: Optional[str] = None
     birthdate: Optional[date] = None
     address: Optional[str] = None
+    postal_code: Optional[str] = None
+    phone_number: Optional[str] = None
 
     @field_validator('password')
     @classmethod
@@ -44,6 +48,8 @@ class UserUpdate(BaseModel):
     middlename: Optional[str] = None
     birthdate: Optional[date] = None
     address: Optional[str] = None
+    postal_code: Optional[str] = None
+    phone_number: Optional[str] = None
     avatar_url: Optional[str] = None
 
 class UserInDBBase(UserBase):
@@ -51,6 +57,7 @@ class UserInDBBase(UserBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     is_email_confirmed: bool = False
+    is_phone_confirmed: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,3 +97,29 @@ class ChangeBirthdate(BaseModel):
 
 class ChangeAddress(BaseModel):
     address: str
+
+class ChangePostalCode(BaseModel):
+    postal_code: str
+
+class ChangePhoneNumber(BaseModel):
+    phone_number: str
+
+class DeleteAccount(BaseModel):
+    password: str
+
+
+# Phone verification schemas
+class PhoneVerificationStart(BaseModel):
+    """Ответ на начало верификации телефона."""
+    call_phone: str
+    call_phone_pretty: str
+    expires_at: str
+    timeout_seconds: int
+
+
+class PhoneVerificationStatus(BaseModel):
+    """Статус верификации телефона."""
+    is_confirmed: bool
+    is_pending: Optional[bool] = None
+    is_expired: Optional[bool] = None
+    message: str

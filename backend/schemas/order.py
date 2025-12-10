@@ -1,7 +1,7 @@
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict, EmailStr
+from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
-from backend.models.order import OrderStatus
+from backend.models.order import OrderStatus, DeliveryMethod
 
 class OrderItemResponse(BaseModel):
     id: int
@@ -17,6 +17,9 @@ class OrderResponse(BaseModel):
     id: int
     status: OrderStatus
     total_amount_cents: int
+    delivery_cost_cents: int = 0
+    delivery_method: DeliveryMethod = DeliveryMethod.PICKUP
+    tracking_number: Optional[str] = None
     shipping_address: Optional[Dict[str, Any]] = None
     contact_info: Optional[Dict[str, Any]] = None
     created_at: datetime
@@ -26,18 +29,24 @@ class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ContactInfo(BaseModel):
+    """Контактные данные получателя"""
+    firstname: str = Field(..., min_length=1, max_length=100)
+    lastname: str = Field(..., min_length=1, max_length=100)
+    middlename: Optional[str] = Field(None, max_length=100)
+    phone: str = Field(..., min_length=10, max_length=20)
     email: EmailStr
-    phone: str
-    name: str
 
 class ShippingAddress(BaseModel):
-    city: str
-    street: str
-    building: str
-    apartment: Optional[str] = None
-    zip_code: Optional[str] = None
+    """Адрес доставки (для Почты России)"""
+    postal_code: str = Field(..., min_length=6, max_length=6)
+    address: str = Field(..., min_length=1, max_length=500)
 
 class OrderCheckout(BaseModel):
+    """Запрос на создание заказа"""
+    delivery_method: Literal["pickup", "russian_post"] = "pickup"
     contact_info: ContactInfo
-    shipping_address: ShippingAddress
+    shipping_address: Optional[ShippingAddress] = None  # Обязательно для russian_post
     payment_method: str = "card"
+    
+    # Стоимость доставки (расчитывается на фронтенде и проверяется на бэке)
+    delivery_cost_cents: int = 0

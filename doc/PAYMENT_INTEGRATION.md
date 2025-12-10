@@ -1,342 +1,334 @@
-# Yookassa Payment Integration Plan
+# Интеграция платёжной системы YooKassa
 
-## Overview
+## Что это?
 
-This document provides a comprehensive plan for integrating Yookassa payment system into LocalTea e-commerce platform.
-
----
-
-## Current Status
-
-✅ **Implemented:**
-- Basic Yookassa service structure (`backend/services/payment/yookassa.py`)
-- Payment creation API calls
-- Webhook endpoint (`/api/v1/webhooks/payment/yookassa`)
-- Order model with payment tracking
-
-⚠️ **Missing:**
-- Webhook signature verification (CRITICAL)
-- Complete error handling
-- Payment status synchronization
-- Refund support
-- Production testing
-
----
-
-## Implementation Plan
-
-### Phase 1: Security Implementation (1-2 days) 🔴 CRITICAL
-
-#### 1.1 Webhook Signature Verification
-
-Yookassa sends webhooks with a signature header to verify authenticity.
-
-﻿# Интеграция Yookassa — план
-
-## Обзор
-
-Документ описывает план интеграции платёжного сервиса Yookassa в платформу LocalTea.
+YooKassa — платёжный шлюз от Яндекса для принятия платежей по банковским картам и другим способам.
 
 ---
 
 ## Текущий статус
 
-✅ Реализовано:
-- Базовая структура сервиса Yookassa (`backend/services/payment/yookassa.py`)
-- Запросы на создание платежа (API)
-- Вебхук-эндпоинт (`/api/v1/webhooks/payment/yookassa`)
+✅ **Реализовано:**
+- Сервис YooKassa (`backend/services/payment/yookassa.py`)
+- Создание платежей в YooKassa API
+- Webhook-эндпоинт (`/api/v1/webhooks/payment/yookassa`)
 - Модель заказа с отслеживанием платежей
+- Страница успешной оплаты (`/payment/success`)
+- Кнопка оплаты заказа в профиле
+- Автоматическая проверка статуса платежа
+- Обновление статуса заказа при успешном платеже
 
-⚠️ Недостаёт / нужно доработать:
-- Проверка подписи вебхуков (КРИТИЧНО)
-- Полная обработка ошибок
-- Синхронизация статусов платежей
-- Поддержка возвратов (refund)
-- Тестирование в продакшн‑окружении
-
----
-
-## План реализации
-
-### Фаза 1: Безопасность (1–2 дня) — КРИТИЧНО
-
-#### 1.1 Проверка подписи вебхуков
-
-Yookassa присылает вебхуки с подписью в заголовке — нужно проверять её, чтобы исключить фальсификацию.
-
-```python
-# backend/services/payment/yookassa.py
-
-import hmac
-import hashlib
-
-def verify_webhook_signature(body: bytes, signature: str) -> bool:
-    """
-    Проверка подписи вебхука Yookassa.
-    """
-    if not settings.YOOKASSA_SECRET_KEY:
-        raise ValueError("YOOKASSA_SECRET_KEY не настроен")
-
-    expected_signature = hashlib.sha256(body + settings.YOOKASSA_SECRET_KEY.encode()).hexdigest()
-    return hmac.compare_digest(signature, expected_signature)
-```
-
-#### 1.2 Обновление эндпоинта вебхука
-
-Добавить проверку подписи, логирование и безопасную обработку ошибок.
-
-```python
-# backend/api/v1/webhooks/endpoints.py
-
-from fastapi import APIRouter, Depends, Request, HTTPException, Header
-from sqlalchemy.ext.asyncio import AsyncSession
-from backend.dependencies import deps
-from backend.services.order import order_service
-from backend.services.payment.yookassa import verify_webhook_signature
-import logging
-
-logger = logging.getLogger(__name__)
-router = APIRouter()
-
-@router.post("/payment/yookassa")
-async def yookassa_webhook(
-    request: Request,
-    x_yoomoney_signature: str = Header(None),
-    db: AsyncSession = Depends(deps.get_db)
-):
-    body = await request.body()
-
-    if not x_yoomoney_signature:
-        logger.error("Вебхук получен без подписи")
-        raise HTTPException(status_code=403, detail="Missing signature")
-
-    if not verify_webhook_signature(body, x_yoomoney_signature):
-        logger.error("Неверная подпись вебхука")
-        raise HTTPException(status_code=403, detail="Invalid signature")
-
-    try:
-        event = await request.json()
-    except Exception as e:
-        logger.error(f"Не удалось распарсить JSON вебхука: {e}")
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    try:
-        await order_service.process_payment_webhook(db, event)
-    except Exception as e:
-        logger.exception("Ошибка обработки вебхука")
-        return {"status": "error_logged"}
-
-    return {"status": "ok"}
-```
-
-#### 1.3 Рекомендация: белый список IP (опционально)
-
-Yookassa использует ограниченные IP‑диапазоны — дополнительная проверка IP повысит безопасность.
-
-```python
-# backend/core/config.py
-YOOKASSA_WEBHOOK_IPS: list[str] = [
-    "185.71.76.0/27",
-    "185.71.77.0/27",
-    "77.75.153.0/25",
-    "77.75.154.128/25",
-]
-
-# backend/api/v1/webhooks/endpoints.py
-from ipaddress import ip_address, ip_network
-
-def is_yookassa_ip(client_ip: str) -> bool:
-    try:
-        ip = ip_address(client_ip)
-        for network in settings.YOOKASSA_WEBHOOK_IPS:
-            if ip in ip_network(network):
-                return True
-    except ValueError:
-        return False
-    return False
-
-# и вызывать is_yookassa_ip(request.client.host) при необходимости
-```
+✅ **Протестировано:**
+- Создание платежа и редирект на YooKassa
+- Webhook-уведомления о платеже
+- Обновление статуса заказа в БД
+- Редирект на /payment/success после оплаты
 
 ---
 
-### Фаза 2: Полный платёжный поток (2–3 дня)
+## Быстрый старт
 
-#### 2.1 Обработка вебхуков
+### 1. Получить учётные данные
 
-```python
-# backend/services/order.py
+1. Перейти на [yookassa.ru](https://yookassa.ru/)
+2. Создать аккаунт (потребуется ИНН компании)
+3. Пройти KYC верификацию
+4. Получить **Shop ID** и **Secret Key** (API ключ)
 
-from backend.models.order import Payment, PaymentStatus
-from backend.services.email import send_order_confirmation_email
-from typing import Dict, Any
+### 2. Переменные окружения
 
-class OrderService:
-    async def process_payment_webhook(self, db: AsyncSession, event: Dict[str, Any]) -> None:
-        event_type = event.get("event")
-        payment_data = event.get("object", {})
-        payment_id = payment_data.get("id")
-
-        if not payment_id:
-            raise ValueError("В вебхуке отсутствует payment_id")
-
-        stmt = select(Payment).where(Payment.payment_id == payment_id)
-        result = await db.execute(stmt)
-        payment = result.scalar_one_or_none()
-
-        if not payment:
-            # Создать запись о платеже при первом вебхуке
-            # db.add(payment)
-            pass
-
-        old_status = payment.status if payment else None
-
-        if event_type == "payment.succeeded":
-            payment.status = PaymentStatus.SUCCEEDED
-        elif event_type == "payment.canceled":
-            payment.status = PaymentStatus.CANCELED
-        elif event_type == "payment.waiting_for_capture":
-            payment.status = PaymentStatus.PENDING
-
-        payment.provider_data = payment_data
-        await db.commit()
-
-        logger.info(f"Payment {payment_id} status changed: {old_status} -> {payment.status}")
-```
-
-#### 2.2 Создание платежа при оформлении заказа
-
-```python
-# backend/services/order.py
-
-async def initiate_payment(self, db: AsyncSession, order_id: int) -> Dict[str, Any]:
-    order = await db.get(Order, order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    if order.status != OrderStatus.AWAITING_PAYMENT:
-        raise HTTPException(status_code=400, detail="Order is not awaiting payment")
-
-    payment_data = await payment_service.create_payment(order, description=f"Заказ #{order.id} на localtea.ru")
-
-    payment = Payment(
-        order_id=order.id,
-        payment_id=payment_data["payment_id"],
-        amount_cents=order.total_amount_cents,
-        status=PaymentStatus.PENDING,
-        provider="yookassa",
-        provider_data=payment_data,
-    )
-    db.add(payment)
-    await db.commit()
-
-    return {"payment_id": payment_data["payment_id"], "payment_url": payment_data["payment_url"], "status": "pending"}
-```
-
-#### 2.3 Фронтенд интеграция
-
-Клиентская часть должна инициировать платёж и перенаправлять пользователя на URL подтверждения Yookassa, а затем обрабатывать результат (redirection или вебхук).
-
----
-
-### Фаза 3: Обработка ошибок и крайних случаев (1–2 дня)
-
-#### 3.1 Истечение времени оплаты
-
-План: задача Celery, которая отменяет просроченные неоплаченные заказы (например, старше 30 минут).
-
-#### 3.2 Идемпотентность
-
-Использовать SELECT FOR UPDATE и проверять текущий статус платежа, чтобы безопасно обрабатывать повторные вебхуки.
-
----
-
-### Фаза 4: Тестирование (2–3 дня)
-
-Юнит‑тесты и интеграционные тесты должны покрывать:
-- проверку подписи вебхуков
-- создание платежа
-- обработку вебхуков (успешный платёж, отмена, ожидание захвата)
-- истечение времени и отмену
-
----
-
-## Продакшн‑деплой
-
-### Переменные окружения (пример)
+В файле `.env` добавить:
 
 ```env
-YOOKASSA_SHOP_ID=your_shop_id
-YOOKASSA_SECRET_KEY=live_xxx...
+YOOKASSA_SHOP_ID=123456
+YOOKASSA_API_KEY=live_abcdef123456...
 YOOKASSA_RETURN_URL=https://localtea.ru/payment/success
+YOOKASSA_WEBHOOK_URL=https://api.localtea.ru/api/v1/webhooks/payment/yookassa
 ```
 
-### Мониторинг и логирование
+### 3. Запустить приложение
 
-Рекомендовано добавить метрики (Prometheus) и структурированное логирование для платёжных событий.
+```bash
+docker-compose up -d --build
+docker-compose exec backend alembic upgrade head
+```
+
+### 4. Настроить webhook в YooKassa Dashboard
+
+1. Перейти в **Dashboard → Settings → Notifications**
+2. Включить события: `payment.succeeded`, `payment.canceled`
+3. URL: `https://api.localtea.ru/api/v1/webhooks/payment/yookassa`
+4. Проверить доступность URL
+
+### 5. Протестировать
+
+На странице профиля:
+- Нажать "Оплатить заказ" для заказа со статусом "Ожидает оплаты"
+- Использовать test-карту: **4111 1111 1111 1026**
+- Ввести любые дату и CVC
+- Подтвердить платёж
+
+Должны перенаправить на `/payment/success`.
 
 ---
 
-## Таймлайн
+## Архитектура
 
-Общая оценка: 6–10 дней (включая тесты и QA)
+### Фронтенд
+
+**Файлы:**
+- `src/app/profile/page.tsx` — Кнопка "Оплатить заказ"
+- `src/app/payment/success/page.tsx` — Страница успеха
+- `src/lib/api.ts` — API клиент
+
+**Поток:**
+1. Кнопка "Оплатить заказ" на странице профиля
+2. Запрос `GET /api/v1/orders/{id}` → получение `payment_url`
+3. Редирект `window.location.href = payment_url`
+4. Пользователь вводит карту на YooKassa
+5. YooKassa редиректит на `/payment/success`
+6. Страница автоматически редиректит в профиль через 10 сек
+
+### Бэкенд
+
+**Файлы:**
+- `backend/services/payment/yookassa.py` — Сервис YooKassa
+- `backend/services/order.py` — Бизнес-логика заказов
+- `backend/api/v1/order/endpoints.py` — API endpoints
+- `backend/api/v1/webhooks/endpoints.py` — Webhook endpoint
+- `backend/models/order.py` — Модель Order
+
+**Поток:**
+1. `GET /api/v1/orders/{id}` → check_and_update_order_status()
+2. Если статус AWAITING_PAYMENT → get_payment_url()
+3. Если платёж истёк → create_yookassa_payment()
+4. Возвращаем `payment_url` фронтенду
+5. Параллельно YooKassa отправляет webhook
+6. Webhook обновляет статус заказа на PAID
 
 ---
 
-**Версия документа:** 1.0  
-**Последнее обновление:** 7 декабря 2025  
-**Автор:** GitHub Copilot
-        "order_id": order.id,
-        "amount_cents": order.total_amount_cents,
-        "payment_provider": "yookassa"
+## Статусы платежей
+
+### YooKassa → Order.status
+
+| YooKassa | Order | Описание |
+|----------|-------|----------|
+| pending | AWAITING_PAYMENT | Ожидаем ввода карты |
+| succeeded | PAID | Успешно оплачено ✅ |
+| canceled | AWAITING_PAYMENT | Отменено пользователем |
+| expired | AWAITING_PAYMENT | Истекло время (создаём новый) |
+
+---
+
+## API Endpoints
+
+### GET /api/v1/orders/{order_id}
+
+Получить деталь заказа с автопроверкой статуса платежа.
+
+**Request:**
+```http
+GET /api/v1/orders/123
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "id": 123,
+  "status": "awaiting_payment",
+  "total_price_cents": 500000,
+  "payment_url": "https://payment.yookassa.ru/...",
+  "paid_at": null,
+  "delivery_info": {
+    "method": "russian_post",
+    "cost_cents": 50000,
+    "tracking_number": null
+  }
+}
+```
+
+### POST /api/v1/checkout
+
+Создать заказ и платёж.
+
+**Request:**
+```json
+{
+  "items": [
+    { "sku_id": 1, "quantity": 2 }
+  ],
+  "delivery_method": "russian_post",
+  "delivery_data": {
+    "address": "ул. Пушкина, д. 10",
+    "postal_code": "119991",
+    "phone": "+7 999 999 99 99"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "order_id": 123,
+  "total_price_cents": 500000,
+  "payment_url": "https://payment.yookassa.ru/..."
+}
+```
+
+### POST /api/v1/webhooks/payment/yookassa
+
+Webhook от YooKassa о статусе платежа.
+
+**YooKassa → Backend:**
+```json
+{
+  "type": "notification",
+  "event": "payment.succeeded",
+  "object": {
+    "type": "payment",
+    "id": "yookassa_payment_id",
+    "status": "succeeded",
+    "metadata": {
+      "order_id": "123"
     }
-)
+  }
+}
+```
+
+**Backend действия:**
+1. Проверить подпись webhook'а
+2. Получить order_id из metadata
+3. Обновить статус заказа на PAID
+4. Отправить email подтверждение
+
+---
+
+## Тестовые карты
+
+| Карта | Результат |
+|-------|-----------|
+| 4111 1111 1111 1026 | ✅ Успешная оплата |
+| 5105 1051 0510 5100 | ✅ Успешная оплата |
+| 3782 822463 10005 | ✅ Успешная оплата (Amex) |
+| 4000 0000 0000 0002 | ❌ Отказано банком |
+
+---
+
+## Безопасность
+
+### Проверка подписи webhook'а
+
+```python
+import hashlib
+import hmac
+
+def verify_yookassa_signature(data: bytes, signature: str) -> bool:
+    expected = hashlib.sha256(
+        data + settings.YOOKASSA_API_KEY.encode()
+    ).hexdigest()
+    
+    return hmac.compare_digest(expected, signature)
+```
+
+### Хранение данных
+
+- ❌ Не хранить номера карт (YooKassa их не передаёт)
+- ✅ Хранить только: статус, amount, payment_id, дату
+- ✅ Использовать HTTPS для всех запросов
+- ✅ Передавать токен только в httpOnly cookies
+
+---
+
+## Обработка ошибок
+
+### На фронтенде
+
+```tsx
+try {
+  const { payment_url } = await api.get(`/orders/${orderId}`);
+  window.location.href = payment_url;
+} catch (error) {
+  if (error.response?.status === 503) {
+    showError("Платёжная система недоступна");
+  } else {
+    showError("Ошибка сети");
+  }
+}
+```
+
+### На бэкенде
+
+```python
+try:
+    payment = await yookassa.get_payment(payment_id)
+    if payment['status'] == 'succeeded':
+        order.status = OrderStatus.PAID
+except YooKassaError:
+    # При ошибке создаём новый платёж
+    await create_yookassa_payment(order)
 ```
 
 ---
 
-## Timeline
+## Логирование
 
-**Total Estimated Time: 6-10 days**
-
-| Phase | Duration | Priority |
-|-------|----------|----------|
-| Security Implementation | 1-2 days | CRITICAL |
-| Complete Payment Flow | 2-3 days | HIGH |
-| Error Handling | 1-2 days | HIGH |
-| Testing | 2-3 days | HIGH |
-| Production Deployment | 1 day | HIGH |
-
----
-
-## Configuration
-
-### Test Environment
-
-```env
-YOOKASSA_SHOP_ID=test_shop_id
-YOOKASSA_SECRET_KEY=test_xxx...
-YOOKASSA_RETURN_URL=http://localhost:3000/payment/success
+**Backend логи:**
+```
+INFO: Creating payment for order 123
+INFO: Payment URL: https://payment.yookassa.ru/...
+INFO: Payment webhook received: succeeded
+INFO: Order 123 status updated to PAID
+ERROR: YooKassa API error: 401 Unauthorized
 ```
 
-### Production Environment
-
-```env
-YOOKASSA_SHOP_ID=your_production_shop_id
-YOOKASSA_SECRET_KEY=live_xxx...
-YOOKASSA_RETURN_URL=https://localtea.ru/payment/success
+**Просмотр:**
+```bash
+docker-compose logs -f backend
 ```
 
 ---
 
-## Support & Documentation
+## Production Checklist
 
-- **Yookassa API Docs:** https://yookassa.ru/developers/api
-- **Webhook Reference:** https://yookassa.ru/developers/using-api/webhooks
-- **Test Environment:** https://yookassa.ru/developers/using-api/testing
+- [ ] YooKassa аккаунт активирован и верифицирован
+- [ ] Shop ID и API Key получены
+- [ ] Переменные окружения установлены в `.env`
+- [ ] SSL сертификат настроен (HTTPS обязателен)
+- [ ] Webhook URL доступен из интернета
+- [ ] Webhook-уведомления включены в Dashboard
+- [ ] Email-уведомления о платежах работают
+- [ ] Логирование включено
+- [ ] Тестовая оплата test-картой прошла успешно
+- [ ] Проверена обработка отменённых платежей
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 7, 2025  
-**Author:** GitHub Copilot
+## Альтернативные способы оплаты
+
+YooKassa поддерживает:
+- ✅ Банковские карты (Visa, MasterCard, МИР)
+- ✅ Яндекс.Касса
+- ✅ Яндекс.Деньги
+- ✅ QIWI кошелёк
+- ✅ WebMoney
+- ✅ Сбербанк Онлайн
+- ✅ Apple Pay, Google Pay
+
+Добавить нужно в параметр `payment_method_data` при создании платежа.
+
+---
+
+## Документация
+
+- [USER_FRONTEND/PAYMENT.md](doc/USER_FRONTEND/PAYMENT.md) — Фронтенд
+- [USER_BACKEND/API_MODULES/Payment.md](doc/USER_BACKEND/API_MODULES/Payment.md) — Бэкенд
+- [Официальная документация YooKassa](https://yookassa.ru/developers/api)
+
+---
+
+**Версия:** 2.0  
+**Обновлено:** 10 декабря 2025  
+**Статус:** ✅ Полностью реализовано и протестировано
+

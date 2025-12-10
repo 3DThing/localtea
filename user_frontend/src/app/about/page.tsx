@@ -112,17 +112,17 @@ export default function AboutPage() {
 
       <Box mt="lg" style={{ textAlign: 'center' }}>
         <Title order={4} style={{ color: '#fbf6ee', fontFamily: 'Georgia, "Times New Roman", serif' }}>Наш офис</Title>
-        <Text c="#e8dcc8" size="sm" mb="md">г. Москва, улица Строжевая, дом 4, строение 1</Text>
+        <Text c="#e8dcc8" size="sm" mb="md">г. Москва, улица Строжевая, дом 4, строение 8</Text>
 
         <Box style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(212,137,79,0.08)', boxShadow: '0 12px 36px rgba(8,6,4,0.5)' }}>
           <iframe
-            src="https://www.google.com/maps?q=Москва+улица+Строжевая+4+стр1&output=embed"
+            src="https://www.google.com/maps?q=Москва+улица+Строжевая+4+стр8&output=embed"
             width="100%"
             height="320"
             style={{ border: 0 }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            title="Map: Москва, улица Строжевая 4 стр1"
+            title="Map: Москва, улица Строжевая 4 стр8"
           />
         </Box>
       </Box>

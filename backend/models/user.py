@@ -25,7 +25,14 @@ class User(Base):
     middlename = Column(String, nullable=True)
     birthdate = Column(Date, nullable=True)
     address = Column(String, nullable=True)
+    postal_code = Column(String, nullable=True, index=True)
+    phone_number = Column(String, nullable=True, unique=True, index=True)
     avatar_url = Column(String, nullable=True)
+    
+    # Phone verification
+    is_phone_confirmed = Column(Boolean, default=False, server_default='false', nullable=False)
+    phone_verification_check_id = Column(String, nullable=True)
+    phone_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

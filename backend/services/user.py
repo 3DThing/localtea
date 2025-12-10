@@ -17,14 +17,23 @@ class UserService:
         if user:
             raise HTTPException(
                 status_code=400,
-                detail="The user with this email already exists in the system.",
+                detail="Эту почту уже использует другой пользователь.",
             )
         user = await crud_user.user.get_by_username(db, username=user_in.username)
         if user:
             raise HTTPException(
                 status_code=400,
-                detail="The user with this username already exists in the system.",
+                detail="Это имя пользователя уже используется другим пользователем.",
             )
+        
+        # Проверяем уникальность номера телефона
+        if user_in.phone_number:
+            existing_user = await crud_user.user.get_by_phone_number(db, phone_number=user_in.phone_number)
+            if existing_user:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Этот номер телефона уже зарегистрирован.",
+                )
         
         user = await crud_user.user.create(db, obj_in=user_in)
         
@@ -180,6 +189,35 @@ class UserService:
         await db.commit()
         return {"msg": "Address updated"}
 
+    async def update_postal_code(self, db: AsyncSession, user: User, postal_code_in: user_schemas.ChangePostalCode):
+        user.postal_code = postal_code_in.postal_code
+        db.add(user)
+        await db.commit()
+        return {"msg": "Postal code updated"}
+
+    async def update_phone_number(self, db: AsyncSession, user: User, phone_number_in: user_schemas.ChangePhoneNumber):
+        # Проверяем, изменился ли номер
+        if user.phone_number == phone_number_in.phone_number:
+            raise HTTPException(status_code=400, detail="New phone number is the same as current")
+        
+        # Проверяем уникальность номера
+        if phone_number_in.phone_number:
+            existing_user = await crud_user.user.get_by_phone_number(db, phone_number=phone_number_in.phone_number)
+            if existing_user and existing_user.id != user.id:
+                raise HTTPException(status_code=400, detail="This phone number is already registered")
+        
+        user.phone_number = phone_number_in.phone_number
+        
+        # Сбрасываем подтверждение телефона при изменении номера
+        user.is_phone_confirmed = False
+        user.phone_verification_check_id = None
+        user.phone_verification_expires_at = None
+        
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return {"msg": "Phone number updated. Please verify your new phone number."}
+
     async def upload_avatar(self, db: AsyncSession, user: User, file: UploadFile):
         from PIL import Image
         import uuid
@@ -236,5 +274,58 @@ class UserService:
         await db.commit()
         await db.refresh(user)
         return {"msg": "Avatar uploaded", "avatar_url": avatar_url}
+
+    async def delete_account(self, db: AsyncSession, user: User, password: str):
+        """Delete user account after password confirmation"""
+        from sqlalchemy import select, delete
+        from backend.models.cart import Cart, CartItem
+        from backend.models.order import Order
+        from backend.models.interactions import Comment, Like, View
+        from backend.models.blog import Article
+        from backend.models.token import Token
+        from backend.models.admin import Admin2FA
+        
+        # Verify password
+        if not security.verify_password(password, user.hashed_password):
+            raise HTTPException(
+                status_code=400,
+                detail="Неверный пароль"
+            )
+        
+        # Delete related records in correct order
+        # 1. Delete cart items
+        cart_result = await db.execute(select(Cart).where(Cart.user_id == user.id))
+        cart = cart_result.scalars().first()
+        if cart:
+            await db.execute(delete(CartItem).where(CartItem.cart_id == cart.id))
+            await db.delete(cart)
+        
+        # 2. Set orders user_id to NULL (keep order history)
+        await db.execute(
+            select(Order).where(Order.user_id == user.id)
+        )
+        orders = (await db.execute(select(Order).where(Order.user_id == user.id))).scalars().all()
+        for order in orders:
+            order.user_id = None
+        
+        # 3. Delete interactions
+        await db.execute(delete(Like).where(Like.user_id == user.id))
+        await db.execute(delete(Comment).where(Comment.user_id == user.id))
+        await db.execute(delete(View).where(View.user_id == user.id))
+        
+        # 4. Delete articles (if author)
+        await db.execute(delete(Article).where(Article.author_id == user.id))
+        
+        # 5. Delete admin 2FA
+        await db.execute(delete(Admin2FA).where(Admin2FA.user_id == user.id))
+        
+        # 6. Delete tokens (will be handled by cascade, but explicit is better)
+        await db.execute(delete(Token).where(Token.user_id == user.id))
+        
+        # 7. Finally delete user
+        await db.delete(user)
+        await db.commit()
+        
+        return {"msg": "Account deleted successfully"}
 
 user_service = UserService()

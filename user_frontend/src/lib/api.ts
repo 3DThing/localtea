@@ -170,6 +170,10 @@ export const userApi = {
     api.post('/user/change-birthdate', data),
   updateAddress: (data: { address: string }) => 
     api.post('/user/change-address', data),
+  updatePostalCode: (data: { postal_code: string }) => 
+    api.post('/user/change-postal-code', data),
+  updatePhoneNumber: (data: { phone_number: string }) => 
+    api.post('/user/change-phone-number', data),
   uploadAvatar: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -187,9 +191,17 @@ export const userApi = {
     api.post('/user/change-username', data),
   // Email confirmation
   confirmEmail: (token: string) => 
-    api.get('/user/confirm-email', { params: { token } }),
+    api.post('/user/confirm-email', null, { params: { token } }),
   confirmEmailChange: (token: string) => 
     api.get('/user/confirm-email-change', { params: { token } }),
+  // Phone verification
+  startPhoneVerification: () => 
+    api.post('/user/phone-verification/start'),
+  checkPhoneVerification: () => 
+    api.get('/user/phone-verification/status'),
+  // Account deletion
+  deleteAccount: (password: string) =>
+    api.delete('/user/account', { data: { password } }),
 };
 
 export const cartApi = {
@@ -200,6 +212,33 @@ export const cartApi = {
     api.patch(`/cart/items/${id}`, data),
   removeItem: (id: number) => api.delete(`/cart/items/${id}`),
   clearCart: () => api.delete('/cart'),
+};
+
+export const deliveryApi = {
+  getMethods: () => api.get('/delivery/methods'),
+  calculate: (data: { postal_code: string; weight_grams: number }) =>
+    api.post('/delivery/calculate', data),
+};
+
+export const orderApi = {
+  checkout: (data: {
+    delivery_method: 'pickup' | 'russian_post';
+    contact_info: {
+      firstname: string;
+      lastname: string;
+      middlename?: string;
+      phone: string;
+      email: string;
+    };
+    shipping_address?: {
+      postal_code: string;
+      address: string;
+    };
+    delivery_cost_cents: number;
+    payment_method?: string;
+  }) => api.post('/orders/checkout', data),
+  getOrders: () => api.get('/orders'),
+  getOrder: (id: number) => api.get(`/orders/${id}`),
 };
 
 export const interactionsApi = {

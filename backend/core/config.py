@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     YOOKASSA_SHOP_ID: Optional[str] = None
     YOOKASSA_SECRET_KEY: Optional[str] = None
     YOOKASSA_RETURN_URL: str = "https://localtea.ru/payment/success"
+    YOOKASSA_WEBHOOK_URL: str = "https://api.localtea.ru/api/v1/webhooks/payment/yookassa"
+
+    # Phone verification (sms.ru)
+    SMS_RU_API_ID: str = "D9A62F49-2FC5-213A-0404-61F414FB8088"
+    PHONE_VERIFICATION_TIMEOUT: int = 300  # 5 минут
+
+    # Delivery (Russian Post)
+    SENDER_POSTAL_CODE: str = "111020"  # Индекс склада отправителя
 
     TOTP_ENCRYPTION_KEY: str
 

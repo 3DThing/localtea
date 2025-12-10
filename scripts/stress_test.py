@@ -12,9 +12,11 @@ BASE_URL = "http://127.0.0.1:8000/api/v1"
 ENDPOINTS = [
     ("/catalog/products", 0.4),
     ("/catalog/categories", 0.2),
-    ("/catalog/products/stress-product", 0.1),  # Detail page (Stress Product)
-    ("/blog/articles/", 0.2),
-    ("/blog/articles/test-article", 0.1) # Detail page (Test Article)
+    ("/login", 0.1),
+    ("/cart", 0.2),
+    ("/", 0.8),
+    ("/blog/tea", 0.3),
+    ("/catalog/stress-test-cat", 0.3)
 ]
 CONCURRENCY = 100
 DURATION_SECONDS = 30
