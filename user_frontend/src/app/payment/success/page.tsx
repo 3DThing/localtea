@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Container,
@@ -16,12 +16,42 @@ import {
 } from '@mantine/core';
 import { IconCheck, IconClock, IconShoppingBag, IconHome } from '@tabler/icons-react';
 import Link from 'next/link';
+import { api } from '@/lib/api';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const orderId = searchParams.get('order_id');
   const [countdown, setCountdown] = useState(10);
   const [shouldRedirect, setShouldRedirect] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'checking' | 'paid' | 'pending'>('checking');
+  
+  // Check order payment status
+  useEffect(() => {
+    const checkPayment = async () => {
+      if (!orderId) {
+        setPaymentStatus('pending');
+        return;
+      }
+      
+      try {
+        // This API call will trigger payment status check
+        const response = await api.get(`/orders/${orderId}/status`);
+        if (response.data.status === 'PAID' || response.data.status === 'paid') {
+          setPaymentStatus('paid');
+        } else {
+          setPaymentStatus('pending');
+          // Retry check after 3 seconds
+          setTimeout(checkPayment, 3000);
+        }
+      } catch (error) {
+        console.error('Error checking order status:', error);
+        setPaymentStatus('pending');
+      }
+    };
+    
+    checkPayment();
+  }, [orderId]);
   
   // Handle redirect separately from state update
   useEffect(() => {
@@ -72,9 +102,18 @@ export default function PaymentSuccessPage() {
               size={100}
               radius="xl"
               variant="gradient"
-              gradient={{ from: '#4caf50', to: '#2e7d32' }}
+              gradient={paymentStatus === 'paid' 
+                ? { from: '#4caf50', to: '#2e7d32' }
+                : paymentStatus === 'checking'
+                ? { from: '#ff9800', to: '#f57c00' }
+                : { from: '#2196f3', to: '#1976d2' }
+              }
             >
-              <IconCheck size={60} stroke={2} />
+              {paymentStatus === 'checking' ? (
+                <Loader color="white" size={40} />
+              ) : (
+                <IconCheck size={60} stroke={2} />
+              )}
             </ThemeIcon>
 
             <Title
@@ -84,15 +123,18 @@ export default function PaymentSuccessPage() {
                 fontFamily: 'Georgia, serif',
               }}
             >
-              Заказ оформлен!
+              {paymentStatus === 'paid' ? 'Оплата подтверждена!' : 'Заказ оформлен!'}
             </Title>
 
             <Text
               size="lg"
               style={{ color: '#e8dcc8', maxWidth: 400 }}
             >
-              Спасибо за покупку! Ваш заказ успешно создан и ожидает оплаты.
-              После подтверждения платежа мы начнём его обработку.
+              {paymentStatus === 'paid' 
+                ? 'Спасибо за покупку! Ваш заказ оплачен и передан в обработку.'
+                : paymentStatus === 'checking'
+                ? 'Проверяем статус оплаты...'
+                : 'Спасибо за покупку! Ваш заказ создан. Ожидаем подтверждения оплаты.'}
             </Text>
 
             {/* Info Box */}
@@ -100,15 +142,27 @@ export default function PaymentSuccessPage() {
               p="md"
               radius="md"
               style={{
-                background: 'rgba(212,137,79,0.1)',
-                border: '1px solid rgba(212,137,79,0.2)',
+                background: paymentStatus === 'paid' 
+                  ? 'rgba(76,175,80,0.1)' 
+                  : 'rgba(212,137,79,0.1)',
+                border: paymentStatus === 'paid'
+                  ? '1px solid rgba(76,175,80,0.3)'
+                  : '1px solid rgba(212,137,79,0.2)',
                 width: '100%',
               }}
             >
               <Group gap="xs" justify="center">
-                <IconClock size={20} style={{ color: '#d4894f' }} />
+                {paymentStatus === 'checking' ? (
+                  <Loader size={16} />
+                ) : (
+                  <IconClock size={20} style={{ color: paymentStatus === 'paid' ? '#4caf50' : '#d4894f' }} />
+                )}
                 <Text size="sm" style={{ color: '#e8dcc8' }}>
-                  Статус заказа обновится автоматически после оплаты
+                  {paymentStatus === 'paid'
+                    ? 'Оплата успешно получена'
+                    : paymentStatus === 'checking'
+                    ? 'Проверка статуса платежа...'
+                    : 'Статус заказа обновится автоматически после оплаты'}
                 </Text>
               </Group>
             </Card>
@@ -151,5 +205,25 @@ export default function PaymentSuccessPage() {
         </Card>
       </Container>
     </Box>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={
+      <Box
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, rgba(22,16,12,1) 0%, rgba(36,24,14,1) 50%, rgba(22,16,12,1) 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Loader color="#d4894f" size="xl" />
+      </Box>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

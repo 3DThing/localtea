@@ -4,6 +4,7 @@
 /* eslint-disable */
 import type { LoginRequest } from '../models/LoginRequest';
 import type { LoginResponse } from '../models/LoginResponse';
+import type { RefreshRequest } from '../models/RefreshRequest';
 import type { Token } from '../models/Token';
 import type { TwoFASetupResponse } from '../models/TwoFASetupResponse';
 import type { TwoFAVerifyRequest } from '../models/TwoFAVerifyRequest';
@@ -62,6 +63,26 @@ export class AuthService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/auth/2fa/verify',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Refresh Token
+     * Refresh access token using refresh token.
+     * @param requestBody
+     * @returns Token Successful Response
+     * @throws ApiError
+     */
+    public static refreshTokenApiV1AuthRefreshPost(
+        requestBody: RefreshRequest,
+    ): CancelablePromise<Token> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/auth/refresh',
             body: requestBody,
             mediaType: 'application/json',
             errors: {

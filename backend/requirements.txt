@@ -14,3 +14,4 @@ asyncpg
 alembic
 jinja2
 Pillow>=10.3.0
+bleach>=6.0.0

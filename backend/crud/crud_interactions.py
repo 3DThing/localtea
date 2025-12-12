@@ -5,11 +5,27 @@ from backend.models.interactions import Comment, Like, View, Report
 from backend.models.blog import Article
 from backend.models.catalog import Product
 from backend.schemas.interactions import CommentCreate, LikeCreate, ReportCreate
+import bleach
+
+# Allowed HTML tags and attributes for comment sanitization (XSS protection)
+ALLOWED_TAGS = ['b', 'i', 'u', 'em', 'strong', 'a', 'br', 'p']
+ALLOWED_ATTRIBUTES = {'a': ['href', 'title']}
+
+def sanitize_content(content: str) -> str:
+    """Sanitize HTML content to prevent XSS attacks."""
+    return bleach.clean(
+        content,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        strip=True
+    )
 
 class CRUDInteractions:
     async def create_comment(self, db: AsyncSession, *, obj_in: CommentCreate, user_id: int) -> Comment:
+        # Sanitize content to prevent XSS attacks
+        sanitized_content = sanitize_content(obj_in.content)
         db_obj = Comment(
-            content=obj_in.content,
+            content=sanitized_content,
             user_id=user_id,
             article_id=obj_in.article_id,
             product_id=obj_in.product_id

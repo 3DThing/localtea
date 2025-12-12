@@ -9,6 +9,7 @@ from admin_backend.core.security import create_pre_auth_token, encrypt_totp_secr
 from backend.core.security import create_access_token, create_csrf_token, get_token_hash
 from backend.core.config import settings
 from backend.models.token import Token as DBToken
+from backend.utils.client_info import get_client_ip, get_user_agent
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 import pyotp
@@ -106,8 +107,8 @@ async def verify_2fa(request: Request, verify_data: TwoFAVerifyRequest, db: Asyn
         csrf_token=csrf_token,
         expires_at=expires_at,
         created_at=datetime.now(timezone.utc),
-        user_agent=request.headers.get("User-Agent", "Admin Panel"),
-        ip=request.client.host if request.client else "0.0.0.0"
+        user_agent=get_user_agent(request) or "Admin Panel",
+        ip=get_client_ip(request)
     )
     db.add(db_token)
     await db.commit()
@@ -164,8 +165,8 @@ async def refresh_token(request: Request, refresh_data: RefreshRequest, db: Asyn
         csrf_token=csrf_token,
         expires_at=expires_at,
         created_at=datetime.now(timezone.utc),
-        user_agent=request.headers.get("User-Agent", "Admin Panel"),
-        ip=request.client.host if request.client else "0.0.0.0"
+        user_agent=get_user_agent(request) or "Admin Panel",
+        ip=get_client_ip(request)
     )
     db.add(new_db_token)
     await db.commit()

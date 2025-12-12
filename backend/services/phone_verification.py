@@ -82,6 +82,11 @@ class PhoneVerificationService:
         Raises:
             PhoneVerificationError: При ошибке API
         """
+        if not self.api_id:
+            raise PhoneVerificationError(
+                "Сервис верификации телефона не настроен. Обратитесь к администратору."
+            )
+        
         normalized_phone = self._normalize_phone(phone)
         
         logger.info(f"Initiating phone verification call for {normalized_phone[:4]}***{normalized_phone[-2:]}")

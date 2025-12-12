@@ -18,6 +18,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 
 export function OrderList() {
   const [orders, setOrders] = useState<OrderAdminResponse[]>([]);
+  const [totalOrders, setTotalOrders] = useState(0);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>('all');
   const [page, setPage] = useState(1);
@@ -32,7 +33,8 @@ export function OrderList() {
       const skip = (page - 1) * pageSize;
       const status = statusFilter !== 'all' ? statusFilter as OrderStatus : undefined;
       const data = await OrdersService.readOrdersApiV1OrdersGet(skip, pageSize, status);
-      setOrders(data);
+      setOrders(data.items || []);
+      setTotalOrders(data.total || 0);
     } catch (error) {
       console.error('Orders fetch error:', error);
       notifications.show({
@@ -59,7 +61,7 @@ export function OrderList() {
     setSelectedOrder(updatedOrder);
   };
 
-  const formatPrice = (cents: number) => `${(cents / 100).toFixed(0)} ₽`;
+  const formatPrice = (cents: number) => `${(cents / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -76,13 +78,19 @@ export function OrderList() {
     const status = order.status;
     const config = statusConfig[status] || statusConfig.awaiting_payment;
     
+    // Extract customer name from contact_info
+    const contactInfo = order.contact_info as { firstname?: string; lastname?: string; phone?: string; email?: string } | null;
+    const customerName = contactInfo 
+      ? [contactInfo.lastname, contactInfo.firstname].filter(Boolean).join(' ') || contactInfo.email || contactInfo.phone
+      : order.user_id ? `User #${order.user_id}` : 'Гость';
+    
     return (
       <Table.Tr key={order.id} style={{ cursor: 'pointer' }} onClick={() => handleViewOrder(order)}>
         <Table.Td>
           <Text fw={500} size="sm">#{order.id}</Text>
         </Table.Td>
         <Table.Td>
-          <Text size="sm">{order.user_email || `User #${order.user_id}`}</Text>
+          <Text size="sm">{customerName}</Text>
         </Table.Td>
         <Table.Td>
           <Badge color={config.color} leftSection={config.icon} size="sm">
@@ -90,8 +98,13 @@ export function OrderList() {
           </Badge>
         </Table.Td>
         <Table.Td>
-          <Text fw={500} size="sm">{formatPrice(order.total_cents)}</Text>
-          <Text size="xs" c="dimmed">{order.items?.length || 0} поз.</Text>
+          <Text fw={500} size="sm">{formatPrice(order.final_amount_cents || order.total_amount_cents)}</Text>
+          <Text size="xs" c="dimmed">
+            {order.delivery_cost_cents > 0 
+              ? `товары: ${formatPrice(order.total_amount_cents)} + ${formatPrice(order.delivery_cost_cents)} дост.`
+              : `${order.items?.length || 0} поз.`
+            }
+          </Text>
         </Table.Td>
         <Table.Td>
           <Text size="xs">{formatDate(order.created_at)}</Text>
@@ -113,7 +126,7 @@ export function OrderList() {
         <Group gap="sm">
           <IconShoppingCart size={20} style={{ color: 'var(--mantine-color-teal-6)' }} />
           <Title order={4}>Заказы</Title>
-          <Badge variant="light" color="teal" size="sm">{orders.length}</Badge>
+          <Badge variant="light" color="teal" size="sm">{totalOrders}</Badge>
         </Group>
       </Flex>
 
@@ -162,9 +175,9 @@ export function OrderList() {
         </Table>
       </ScrollArea>
 
-      {orders.length >= pageSize && (
+      {totalOrders > pageSize && (
         <Group justify="center" mt="sm">
-          <Pagination total={10} value={page} onChange={setPage} size="sm" />
+          <Pagination total={Math.ceil(totalOrders / pageSize)} value={page} onChange={setPage} size="sm" />
         </Group>
       )}
 

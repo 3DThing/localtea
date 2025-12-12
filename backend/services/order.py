@@ -8,6 +8,9 @@ from datetime import datetime, timedelta, timezone
 from backend.models.order import Order, OrderItem, OrderStatus, Payment, PaymentStatus, DeliveryMethod
 from backend.models.catalog import SKU
 from backend.models.cart import Cart
+from backend.models.finance import FinanceTransaction, TransactionType
+from backend.models.inventory import ProductStock
+from backend.models.promo_code import PromoCode
 from backend.schemas import order as order_schemas
 from backend.services.cart import cart_service
 from backend.services.payment.yookassa import payment_service
@@ -25,25 +28,12 @@ class OrderService:
         if not cart or not cart.items:
             raise HTTPException(status_code=400, detail="Cart is empty")
 
-        # Load items with SKU to check prices and details
-        # cart_service.get_cart might not load everything we need if we just used the basic one, 
-        # but let's assume we need to reload or use what we have.
-        # Ideally we fetch cart items with SKU.
-        # Let's re-fetch to be sure we have latest data and lock? 
-        # For MVP, just fetch.
-        
-        # We need to iterate and reserve.
-        # To ensure atomicity, we can do it one by one or in a batch.
-        # If one fails, we rollback the whole transaction (FastAPI dependency handles transaction scope, 
-        # but we need to raise exception to trigger rollback).
-        
-        total_amount = 0
+        total_amount = 0  # Сумма без скидок
+        discount_amount = 0  # Сумма скидок на товары
         order_items_data = []
         
-        # 2. Calculate totals and prepare order items
+        # 2. Calculate totals and prepare order items (с учётом скидок на товары)
         for item in cart.items:
-            # Refresh SKU to get current price/stock? 
-            # We will do atomic update later, but we need price.
             sku = await db.get(SKU, item.sku_id)
             if not sku:
                 raise HTTPException(status_code=404, detail=f"SKU {item.sku_id} not found")
@@ -51,18 +41,53 @@ class OrderService:
             if not sku.is_active:
                  raise HTTPException(status_code=400, detail=f"Product {sku.sku_code} is not available")
 
-            price = item.fixed_price_cents if item.fixed_price_cents is not None else sku.price_cents
-            total_amount += price * item.quantity
+            # Оригинальная цена
+            original_price = sku.price_cents
+            # Скидка на товар
+            item_discount = sku.discount_cents or 0
+            # Финальная цена со скидкой товара
+            final_price = original_price - item_discount
+            if final_price < 0:
+                final_price = 0
+            
+            # Если есть фиксированная цена в корзине
+            if item.fixed_price_cents is not None:
+                final_price = item.fixed_price_cents
+                item_discount = max(0, original_price - final_price)
+            
+            total_amount += original_price * item.quantity
+            discount_amount += item_discount * item.quantity
             
             order_items_data.append({
                 "sku_id": sku.id,
-                "title": sku.product.title if sku.product else "Unknown Product", # We need to load product
-                "sku_info": f"{sku.weight}g", # Simplified info
-                "price_cents": price,
+                "title": sku.product.title if sku.product else "Unknown Product",
+                "sku_info": f"{sku.weight}g",
+                "price_cents": final_price,  # Цена со скидкой товара
                 "quantity": item.quantity
             })
 
-        # 3. Create Order
+        # Сумма после скидок на товары
+        subtotal = total_amount - discount_amount
+        
+        # 3. Проверяем и применяем промокод
+        promo_discount = 0
+        applied_promo_code = None
+        
+        if checkout_in.promo_code:
+            result = await db.execute(
+                select(PromoCode).where(PromoCode.code == checkout_in.promo_code.upper())
+            )
+            promo = result.scalars().first()
+            
+            if promo and promo.is_valid() and subtotal >= promo.min_order_amount_cents:
+                promo_discount = promo.calculate_discount(subtotal)
+                applied_promo_code = promo.code
+                
+                # Увеличиваем счётчик использований
+                promo.usage_count += 1
+                db.add(promo)
+
+        # 4. Create Order
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
         
         # Определяем метод доставки
@@ -86,12 +111,17 @@ class OrderService:
         # Стоимость доставки
         delivery_cost = checkout_in.delivery_cost_cents if checkout_in.delivery_method == "russian_post" else 0
         
+        # Общая скидка = скидки на товары + промокод
+        total_discount = discount_amount + promo_discount
+        
         order = Order(
             user_id=user_id,
             session_id=session_id,
             status=OrderStatus.AWAITING_PAYMENT,
-            total_amount_cents=total_amount,
+            total_amount_cents=subtotal,  # Сумма товаров после скидок
             delivery_cost_cents=delivery_cost,
+            discount_amount_cents=promo_discount,  # Скидка по промокоду
+            promo_code=applied_promo_code,
             delivery_method=delivery_method,
             shipping_address=shipping_address_data,
             contact_info=contact_info_data,
@@ -100,7 +130,7 @@ class OrderService:
         db.add(order)
         await db.flush() # Get ID
         
-        # 4. Process Items: Create OrderItem and Reserve Stock
+        # 5. Process Items: Create OrderItem and Reserve Stock
         for item_data in order_items_data:
             # Create OrderItem
             order_item = OrderItem(
@@ -130,12 +160,25 @@ class OrderService:
                     status_code=400, 
                     detail=f"Not enough stock for product with SKU ID {item_data['sku_id']}"
                 )
+            
+            # Sync ProductStock (warehouse view)
+            product_stock_stmt = (
+                update(ProductStock)
+                .where(ProductStock.sku_id == item_data["sku_id"])
+                .values(
+                    quantity=ProductStock.quantity - item_data["quantity"],
+                    reserved=ProductStock.reserved + item_data["quantity"]
+                )
+            )
+            await db.execute(product_stock_stmt)
 
-        # 5. Clear Cart
+        # 6. Clear Cart
         await cart_service.clear_cart(db, user_id, session_id)
         
-        # 6. Create Payment (товары + доставка)
-        total_with_delivery = order.total_amount_cents + order.delivery_cost_cents
+        # 7. Create Payment (товары + доставка - скидка промокода)
+        total_with_delivery = order.total_amount_cents + order.delivery_cost_cents - order.discount_amount_cents
+        if total_with_delivery < 0:
+            total_with_delivery = 0
         try:
             payment_data = await payment_service.create_payment(order, f"Order #{order.id}")
         except Exception as e:
@@ -222,6 +265,36 @@ class OrderService:
                     # Update payment and order status
                     payment.status = PaymentStatus.SUCCEEDED
                     order.status = OrderStatus.PAID
+                    
+                    # Create finance transaction for the sale
+                    # Итоговая сумма = товары + доставка - скидка промокода
+                    total_amount = order.total_amount_cents + (order.delivery_cost_cents or 0) - (order.discount_amount_cents or 0)
+                    if total_amount < 0:
+                        total_amount = 0
+                    
+                    # Check if finance transaction already exists
+                    existing_tx = await db.execute(
+                        select(FinanceTransaction).where(FinanceTransaction.order_id == order.id)
+                    )
+                    if not existing_tx.scalars().first():
+                        # Get current balance
+                        balance_result = await db.execute(
+                            select(FinanceTransaction.balance_after_cents)
+                            .order_by(FinanceTransaction.id.desc())
+                            .limit(1)
+                        )
+                        current_balance = balance_result.scalar() or 0
+                        new_balance = current_balance + total_amount
+                        
+                        finance_tx = FinanceTransaction(
+                            transaction_type=TransactionType.SALE,
+                            amount_cents=total_amount,
+                            description=f"Оплата заказа #{order.id}",
+                            order_id=order.id,
+                            balance_after_cents=new_balance
+                        )
+                        db.add(finance_tx)
+                    
                     db.add(payment)
                     db.add(order)
                     await db.commit()
@@ -280,6 +353,35 @@ class OrderService:
                     payment.status = PaymentStatus.SUCCEEDED
                     order.status = OrderStatus.PAID
                     
+                    # Create finance transaction for the sale (with duplicate check)
+                    # Итоговая сумма = товары + доставка - скидка промокода
+                    total_amount = order.total_amount_cents + (order.delivery_cost_cents or 0) - (order.discount_amount_cents or 0)
+                    if total_amount < 0:
+                        total_amount = 0
+                    
+                    # Check if finance transaction already exists
+                    existing_tx = await db.execute(
+                        select(FinanceTransaction).where(FinanceTransaction.order_id == order.id)
+                    )
+                    if not existing_tx.scalars().first():
+                        # Get current balance
+                        balance_result = await db.execute(
+                            select(FinanceTransaction.balance_after_cents)
+                            .order_by(FinanceTransaction.id.desc())
+                            .limit(1)
+                        )
+                        current_balance = balance_result.scalar() or 0
+                        new_balance = current_balance + total_amount
+                        
+                        finance_tx = FinanceTransaction(
+                            transaction_type=TransactionType.SALE,
+                            amount_cents=total_amount,
+                            description=f"Оплата заказа #{order.id}",
+                            order_id=order.id,
+                            balance_after_cents=new_balance
+                        )
+                        db.add(finance_tx)
+                    
                     # Finalize stock
                     result = await db.execute(select(OrderItem).where(OrderItem.order_id == order.id))
                     items = result.scalars().all()
@@ -290,6 +392,12 @@ class OrderService:
                             .values(reserved_quantity=SKU.reserved_quantity - item.quantity)
                         )
                         await db.execute(stmt)
+                        # Sync ProductStock
+                        await db.execute(
+                            update(ProductStock)
+                            .where(ProductStock.sku_id == item.sku_id)
+                            .values(reserved=ProductStock.reserved - item.quantity)
+                        )
                     
                     db.add(payment)
                     db.add(order)
@@ -327,6 +435,15 @@ class OrderService:
                 )
             )
             await db.execute(stmt)
+            # Sync ProductStock
+            await db.execute(
+                update(ProductStock)
+                .where(ProductStock.sku_id == item.sku_id)
+                .values(
+                    quantity=ProductStock.quantity + item.quantity,
+                    reserved=ProductStock.reserved - item.quantity
+                )
+            )
             
         # Update payment status if exists
         payment_result = await db.execute(select(Payment).where(Payment.order_id == order.id))
@@ -375,6 +492,35 @@ class OrderService:
             payment.status = PaymentStatus.SUCCEEDED
             order.status = OrderStatus.PAID
             
+            # Create finance transaction for the sale (with duplicate check)
+            # Итоговая сумма = товары + доставка - скидка промокода
+            total_amount = order.total_amount_cents + (order.delivery_cost_cents or 0) - (order.discount_amount_cents or 0)
+            if total_amount < 0:
+                total_amount = 0
+            
+            # Check if finance transaction already exists
+            existing_tx = await db.execute(
+                select(FinanceTransaction).where(FinanceTransaction.order_id == order.id)
+            )
+            if not existing_tx.scalars().first():
+                # Get current balance
+                balance_result = await db.execute(
+                    select(FinanceTransaction.balance_after_cents)
+                    .order_by(FinanceTransaction.id.desc())
+                    .limit(1)
+                )
+                current_balance = balance_result.scalar() or 0
+                new_balance = current_balance + total_amount
+                
+                finance_tx = FinanceTransaction(
+                    transaction_type=TransactionType.SALE,
+                    amount_cents=total_amount,
+                    description=f"Оплата заказа #{order.id}",
+                    order_id=order.id,
+                    balance_after_cents=new_balance
+                )
+                db.add(finance_tx)
+            
             # Finalize stock: reduce reserved_quantity
             result = await db.execute(select(OrderItem).where(OrderItem.order_id == order.id))
             items = result.scalars().all()
@@ -386,6 +532,12 @@ class OrderService:
                     .values(reserved_quantity=SKU.reserved_quantity - item.quantity)
                 )
                 await db.execute(stmt)
+                # Sync ProductStock
+                await db.execute(
+                    update(ProductStock)
+                    .where(ProductStock.sku_id == item.sku_id)
+                    .values(reserved=ProductStock.reserved - item.quantity)
+                )
                 
         elif real_status == "canceled" and event_type == "payment.canceled":
             payment.status = PaymentStatus.FAILED
@@ -405,6 +557,15 @@ class OrderService:
                     )
                 )
                 await db.execute(stmt)
+                # Sync ProductStock
+                await db.execute(
+                    update(ProductStock)
+                    .where(ProductStock.sku_id == item.sku_id)
+                    .values(
+                        quantity=ProductStock.quantity + item.quantity,
+                        reserved=ProductStock.reserved - item.quantity
+                    )
+                )
         
         payment.provider_response = real_status_data
         db.add(payment)
@@ -438,6 +599,15 @@ class OrderService:
                     )
                 )
                 await db.execute(stmt)
+                # Sync ProductStock
+                await db.execute(
+                    update(ProductStock)
+                    .where(ProductStock.sku_id == item.sku_id)
+                    .values(
+                        quantity=ProductStock.quantity + item.quantity,
+                        reserved=ProductStock.reserved - item.quantity
+                    )
+                )
             
             # Update payment status if exists?
             payment_result = await db.execute(select(Payment).where(Payment.order_id == order.id))

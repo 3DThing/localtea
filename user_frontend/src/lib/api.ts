@@ -205,13 +205,14 @@ export const userApi = {
 };
 
 export const cartApi = {
-  getCart: () => api.get('/cart'),
+  getCart: (promoCode?: string) => api.get('/cart', { params: promoCode ? { promo_code: promoCode } : undefined }),
   addItem: (data: { sku_id: number; quantity: number }) => 
     api.post('/cart/items', data),
   updateItem: (id: number, data: { quantity: number }) => 
     api.patch(`/cart/items/${id}`, data),
   removeItem: (id: number) => api.delete(`/cart/items/${id}`),
   clearCart: () => api.delete('/cart'),
+  applyPromoCode: (code: string) => api.post('/cart/promo', { code }),
 };
 
 export const deliveryApi = {
@@ -236,6 +237,7 @@ export const orderApi = {
     };
     delivery_cost_cents: number;
     payment_method?: string;
+    promo_code?: string;
   }) => api.post('/orders/checkout', data),
   getOrders: () => api.get('/orders'),
   getOrder: (id: number) => api.get(`/orders/${id}`),
@@ -247,6 +249,8 @@ export const interactionsApi = {
   createComment: (data: { content: string; article_id?: number; product_id?: number }) =>
     api.post('/interactions/comments', data),
   deleteComment: (id: number) => api.delete(`/interactions/comments/${id}`),
+  reportComment: (id: number, data: { reason: string }) =>
+    api.post(`/interactions/comments/${id}/report`, data),
   toggleLike: (data: { article_id?: number; product_id?: number; comment_id?: number }) =>
     api.post('/interactions/likes', data),
   registerView: (data: { article_id?: number; product_id?: number }) =>

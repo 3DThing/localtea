@@ -14,7 +14,7 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Expose the port
+# Expose the port (Next.js dev server default)
 EXPOSE 3001
 
 # Start the application

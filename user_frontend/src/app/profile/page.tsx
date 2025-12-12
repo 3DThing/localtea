@@ -786,7 +786,8 @@ function ProfilePageContent() {
                 };
                 const status = statusLabels[order.status] || { label: order.status, color: 'gray' };
                 const delivery = deliveryLabels[order.delivery_method] || order.delivery_method;
-                const totalWithDelivery = order.total_amount_cents + (order.delivery_cost_cents || 0);
+                // Используем final_amount_cents если есть, иначе считаем вручную
+                const finalAmount = order.final_amount_cents ?? (order.total_amount_cents + (order.delivery_cost_cents || 0) - (order.discount_amount_cents || 0));
                 
                 return (
                   <Card
@@ -843,10 +844,21 @@ function ProfilePageContent() {
                       </Text>
                     </Group>
                     
+                    {order.discount_amount_cents > 0 && (
+                      <Group justify="space-between" mb="xs">
+                        <Text size="sm" style={{ color: 'rgba(232,220,200,0.7)' }}>
+                          Скидка{order.promo_code ? ` (${order.promo_code})` : ''}
+                        </Text>
+                        <Text size="sm" style={{ color: '#4caf50' }}>
+                          -{(order.discount_amount_cents / 100).toLocaleString('ru-RU')} ₽
+                        </Text>
+                      </Group>
+                    )}
+                    
                     <Group justify="space-between">
                       <Text fw={600} style={{ color: '#fbf6ee' }}>Итого</Text>
                       <Text fw={700} size="lg" style={{ color: '#d4894f' }}>
-                        {(totalWithDelivery / 100).toLocaleString('ru-RU')} ₽
+                        {(finalAmount / 100).toLocaleString('ru-RU')} ₽
                       </Text>
                     </Group>
                     

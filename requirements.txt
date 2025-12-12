@@ -18,3 +18,4 @@ pytest
 pytest-asyncio
 httpx
 Pillow>=10.3.0
+bleach>=6.0.0

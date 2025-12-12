@@ -11,6 +11,12 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconArticle,
+  IconDiscount2,
+  IconShield,
+  IconPackage,
+  IconReceiptRefund,
+  IconChartBar,
+  IconCash,
 } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -20,6 +26,12 @@ const data = [
   { link: '/dashboard/orders', label: 'Заказы', icon: IconShoppingCart },
   { link: '/dashboard/users', label: 'Пользователи', icon: IconUsers },
   { link: '/dashboard/blog', label: 'Блог', icon: IconArticle },
+  { link: '/dashboard/promo-codes', label: 'Промокоды', icon: IconDiscount2 },
+  { link: '/dashboard/inventory', label: 'Склад', icon: IconPackage },
+  { link: '/dashboard/finance', label: 'Финансы', icon: IconCash },
+  { link: '/dashboard/moderation', label: 'Модерация', icon: IconShield },
+  { link: '/dashboard/refunds', label: 'Возвраты', icon: IconReceiptRefund },
+  { link: '/dashboard/analytics', label: 'Аналитика', icon: IconChartBar },
 ];
 
 interface AppSidebarProps {

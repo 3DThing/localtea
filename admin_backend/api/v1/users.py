@@ -14,7 +14,7 @@ from admin_backend.schemas.user import UserAdminResponse, UserAdminUpdate, UserL
 from admin_backend.schemas.auth import Token
 from admin_backend.crud import crud_admin_2fa
 from admin_backend.services.audit_log import log_admin_action
-from backend.core.security import create_access_token, create_refresh_token_str, create_csrf_token
+from backend.core.security import create_access_token, create_refresh_token_str, create_csrf_token, get_token_hash
 from backend.models.token import Token as DBToken
 from backend.core.config import settings
 from datetime import datetime, timedelta, timezone
@@ -127,13 +127,15 @@ async def impersonate_user(
     # Generate tokens for the target user
     access_token = create_access_token(user.id)
     refresh_token_str = create_refresh_token_str()
+    # Hash the refresh token before storing to prevent token exposure in case of database compromise
+    refresh_token_hash = get_token_hash(refresh_token_str)
     csrf_token = create_csrf_token()
     
-    # Save refresh token to DB
+    # Save refresh token hash to DB (not the plain token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     db_token = DBToken(
         user_id=user.id,
-        refresh_token=refresh_token_str,
+        refresh_token=refresh_token_hash,
         csrf_token=csrf_token,
         expires_at=expires_at,
         created_at=datetime.now(timezone.utc),

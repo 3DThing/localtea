@@ -9,6 +9,7 @@ class OrderStatus(str, enum.Enum):
     AWAITING_PAYMENT = "awaiting_payment"
     PAID = "paid"
     PROCESSING = "processing"
+    READY_FOR_PICKUP = "ready_for_pickup"  # Готов к самовывозу
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
@@ -26,14 +27,20 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
     session_id = Column(String, nullable=True)
-    status = Column(Enum(OrderStatus), default=OrderStatus.AWAITING_PAYMENT, nullable=False)
+    status = Column(
+        Enum(OrderStatus, name='orderstatus', create_type=False, values_callable=lambda x: [e.value for e in x]),
+        default=OrderStatus.AWAITING_PAYMENT, nullable=False
+    )
     total_amount_cents = Column(Integer, nullable=False)  # Сумма товаров
     delivery_cost_cents = Column(Integer, default=0)      # Стоимость доставки
     discount_amount_cents = Column(Integer, default=0)
     promo_code = Column(String, nullable=True)
     
     # Метод доставки
-    delivery_method = Column(Enum(DeliveryMethod), default=DeliveryMethod.PICKUP, nullable=False)
+    delivery_method = Column(
+        Enum(DeliveryMethod, name='deliverymethod', create_type=False, values_callable=lambda x: [e.value for e in x]),
+        default=DeliveryMethod.PICKUP, nullable=False
+    )
     
     # Данные получателя (JSONB для гибкости)
     # contact_info: {firstname, lastname, middlename, phone, email}

@@ -6,12 +6,14 @@
 
 **URL Production**: `https://admin.localtea.ru`
 
+> ⚠️ **Доступ ограничен**: Панель администратора доступна только через корпоративную VPN-сеть (IP whitelist).
+
 ## Технологический стек
 
 ### Core
 | Технология | Версия | Назначение |
 |------------|--------|------------|
-| Next.js | 16.0.7 | React фреймворк с App Router |
+| Next.js | 15+ | React фреймворк с App Router |
 | TypeScript | 5+ | Типизация |
 | React | 19 | UI библиотека |
 
@@ -287,6 +289,8 @@ export const useProducts = (params) => {
 - JWT токены (access + refresh)
 - Хранение в localStorage (`accessToken`, `refreshToken`)
 - Автоматический refresh при 401
+
+> ⚠️ **Важно**: Хранение токенов в localStorage уязвимо к XSS-атакам. Админ-панель должна быть доступна только через VPN или с ограничением по IP для минимизации рисков. В будущем рекомендуется перейти на httpOnly cookies.
 
 ### Защита роутов
 - `AuthGuard` компонент проверяет наличие токена

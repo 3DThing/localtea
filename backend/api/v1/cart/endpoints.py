@@ -1,5 +1,5 @@
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import deps
 from backend.services.cart import cart_service
@@ -10,6 +10,7 @@ router = APIRouter()
 @router.get("", response_model=cart_schemas.CartResponse)
 async def get_cart(
     response: Response,
+    promo_code: Optional[str] = Query(None, description="Промокод для применения"),
     user_session: tuple[Optional[int], str] = Depends(deps.get_user_or_session),
     db: AsyncSession = Depends(deps.get_db)
 ) -> Any:
@@ -20,7 +21,18 @@ async def get_cart(
     if session_id:
         response.headers["X-Session-ID"] = session_id
         
-    return await cart_service.get_cart_with_items(db, user_id, session_id)
+    return await cart_service.get_cart_with_items(db, user_id, session_id, promo_code)
+
+
+@router.post("/promo", response_model=cart_schemas.PromoCodeResponse)
+async def apply_promo_code(
+    promo_in: cart_schemas.ApplyPromoCode,
+    user_session: tuple[Optional[int], str] = Depends(deps.get_user_or_session),
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    """Применить промокод и получить информацию о скидке"""
+    user_id, session_id = user_session
+    return await cart_service.apply_promo_code(db, user_id, session_id, promo_in.code)
 
 @router.post("/items", response_model=cart_schemas.CartResponse)
 async def add_item(

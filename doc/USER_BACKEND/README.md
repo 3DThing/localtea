@@ -234,9 +234,13 @@ docker-compose logs -f backend
 
 | Endpoint | Лимит |
 |----------|-------|
+| `/user/login` | 3/мин, 20/час |
 | `/user/registration` | 5/мин, 20/час |
 | `/user/refresh` | 2/мин |
 | `/user/phone-verification/start` | 3/мин, 10/час |
+| `/interactions/comments` | 5/мин |
+| `/interactions/likes` | 10/мин |
+| `/interactions/views` | 20/мин |
 
 ### Хеширование
 
@@ -275,8 +279,3 @@ docker-compose logs -f backend
 - [REDIS_AND_CELERY.md](REDIS_AND_CELERY.md) — Кэширование и очереди
 - [TESTING.md](TESTING.md) — Тестирование
 - [STRESS_TESTING.md](STRESS_TESTING.md) — Нагрузочное тестирование
-
-### Интеграции
-
-- [PAYMENT_INTEGRATION.md](../PAYMENT_INTEGRATION.md) — ЮKassa
-- [DELIVERY_INTEGRATION.md](../DELIVERY_INTEGRATION.md) — Почта России

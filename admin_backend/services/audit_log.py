@@ -10,6 +10,10 @@ async def log_admin_action(
     entity_id: Optional[int] = None,
     details: Optional[str] = None
 ):
+    """
+    Log admin action to database.
+    Automatically commits the log entry.
+    """
     details_dict = {
         "entity_type": entity_type,
         "message": details
@@ -22,3 +26,4 @@ async def log_admin_action(
         details=details_dict
     )
     db.add(log_entry)
+    await db.commit()

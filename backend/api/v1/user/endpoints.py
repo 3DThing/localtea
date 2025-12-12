@@ -13,6 +13,7 @@ from backend.schemas import token as token_schemas
 from backend.core.limiter import limiter
 from backend.services.user import user_service
 from backend.crud import crud_user
+from backend.utils.client_info import get_client_ip, get_user_agent
 from datetime import datetime, timedelta, timezone
 
 import uuid
@@ -56,8 +57,8 @@ async def login_access_token(
         user_id=user.id,
         refresh_token=refresh_token_hash,
         csrf_token=csrf_token,
-        ip=request.client.host,
-        user_agent=request.headers.get("User-Agent"),
+        ip=get_client_ip(request),
+        user_agent=get_user_agent(request),
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
     db.add(db_token)
@@ -106,8 +107,8 @@ async def login(
         user_id=user.id,
         refresh_token=refresh_token_hash,
         csrf_token=csrf_token,
-        ip=request.client.host,
-        user_agent=request.headers.get("User-Agent"),
+        ip=get_client_ip(request),
+        user_agent=get_user_agent(request),
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
     db.add(db_token)
@@ -199,8 +200,8 @@ async def refresh_token(
         raise HTTPException(status_code=401, detail="Invalid refresh token")
         
     # Fingerprint check
-    current_ip = request.client.host
-    current_ua = request.headers.get("User-Agent")
+    current_ip = get_client_ip(request)
+    current_ua = get_user_agent(request)
     
     if token_obj.ip != current_ip or token_obj.user_agent != current_ua:
         # Revoke token on suspicious activity

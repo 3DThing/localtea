@@ -9,6 +9,7 @@ class OrderStatus(str, enum.Enum):
     AWAITING_PAYMENT = "awaiting_payment"
     PAID = "paid"
     SHIPPED = "shipped"
+    DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
 class PaymentStatus(str, enum.Enum):

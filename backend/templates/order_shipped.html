@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 style="color: #8b4513; border-bottom: 1px dashed #d2b48c; padding-bottom: 10px;">🦅 Посылка в Пути!</h2>
+    
+    <p>Радостные вести, <strong>{{ customer_name }}</strong>!</p>
+    
+    <p>Твой заказ покинул наши чертоги и отправился в дальнее странствие к твоим владениям! Наши верные почтовые голуби несут его со всей возможной скоростью.</p>
+    
+    <!-- Order Info -->
+    <div style="background-color: #fdf5e6; padding: 20px; border: 2px solid #d2b48c; border-radius: 4px; margin: 25px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">📋 Номер заказа:</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #5c4033;">#{{ order_id }}</td>
+            </tr>
+            {% if tracking_number %}
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">📮 Трек-номер:</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #8b0000; font-family: 'Courier New', monospace; letter-spacing: 1px;">{{ tracking_number }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">🚚 Способ доставки:</td>
+                <td style="padding: 8px 0; text-align: right; color: #5c4033;">{{ delivery_method }}</td>
+            </tr>
+        </table>
+    </div>
+
+    {% if tracking_number %}
+    <div style="text-align: center; margin: 25px 0;">
+        <a href="https://www.pochta.ru/tracking#{{ tracking_number }}" class="button" style="background-color: #8b5a2b;">Отследить Посылку</a>
+    </div>
+    {% endif %}
+
+    <!-- Shipping Address -->
+    {% if shipping_address %}
+    <div style="background-color: #f5f0e1; padding: 15px; border: 1px solid #d2b48c; border-radius: 4px; margin: 20px 0;">
+        <p style="margin: 0 0 10px 0; color: #8b7355; font-weight: bold;">📍 Адрес доставки:</p>
+        <p style="margin: 0; color: #5c4033;">{{ shipping_address }}</p>
+    </div>
+    {% endif %}
+
+    <div style="background-color: #f0fff0; padding: 15px; border-left: 4px solid #6b8e23; margin: 25px 0;">
+        <p style="margin: 0; color: #556b2f;">💡 <strong>Совет путника:</strong> Ожидаемое время доставки — {{ estimated_days }}. Следи за трек-номером, чтобы не пропустить прибытие!</p>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="{{ order_link }}" class="button">Детали Заказа</a>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em; color: #8b7355; font-style: italic; text-align: center;">Пусть дороги будут быстрыми, а чай — горячим! 🍃</p>
+{% endblock %}

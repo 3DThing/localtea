@@ -141,7 +141,11 @@ export default function DashboardPage() {
                         </Badge>
                         <Text size="xs" c="dimmed">{formatDate(log.created_at)}</Text>
                       </Group>
-                      <Text size="xs" lineClamp={1}>{log.details || `${log.entity_type} #${log.entity_id}`}</Text>
+                      <Text size="xs" lineClamp={1}>
+                        {typeof log.details === 'object' && log.details?.message 
+                          ? log.details.message 
+                          : (typeof log.details === 'string' ? log.details : `${log.details?.entity_type || 'action'} #${log.entity_id}`)}
+                      </Text>
                     </Paper>
                   ))}
                 </Stack>

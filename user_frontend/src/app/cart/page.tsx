@@ -18,6 +18,7 @@ import {
   Loader,
   Alert,
   Modal,
+  Badge,
 } from '@mantine/core';
 import { useMediaQuery, useDisclosure } from '@mantine/hooks';
 import { 
@@ -31,6 +32,8 @@ import {
   IconMail,
   IconCheck,
   IconAlertCircle,
+  IconTicket,
+  IconX,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import Link from 'next/link';
@@ -65,12 +68,29 @@ interface DeliveryOption {
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, totalAmount, updateItem, removeItem, clearCart, isLoading } = useCartStore();
+  const { 
+    items, 
+    totalAmount, 
+    discountAmount, 
+    promoDiscount, 
+    promoCode,
+    finalAmount,
+    updateItem, 
+    removeItem, 
+    clearCart, 
+    isLoading,
+    applyPromoCode,
+    clearPromoCode
+  } = useCartStore();
   const { user } = useAuthStore();
   const isMobile = useMediaQuery('(max-width: 768px)');
   
   // Stepper state
   const [activeStep, setActiveStep] = useState(0);
+  
+  // Promo code input
+  const [promoInput, setPromoInput] = useState('');
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   
   // Delivery method
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('pickup');
@@ -214,7 +234,40 @@ export default function CartPage() {
   const deliveryCost = deliveryMethod === 'russian_post' && selectedDeliveryOption 
     ? selectedDeliveryOption.total_cost_cents 
     : 0;
-  const grandTotal = totalAmount + deliveryCost;
+  const grandTotal = finalAmount + deliveryCost;
+  
+  // Handle promo code
+  const handleApplyPromo = async () => {
+    if (!promoInput.trim()) return;
+    
+    setIsApplyingPromo(true);
+    const result = await applyPromoCode(promoInput.trim());
+    setIsApplyingPromo(false);
+    
+    if (result.success) {
+      notifications.show({
+        title: 'Промокод применён',
+        message: result.message,
+        color: 'green',
+        icon: <IconCheck size={16} />,
+      });
+      setPromoInput('');
+    } else {
+      notifications.show({
+        title: 'Ошибка',
+        message: result.message,
+        color: 'red',
+      });
+    }
+  };
+  
+  const handleRemovePromo = () => {
+    clearPromoCode();
+    notifications.show({
+      message: 'Промокод удалён',
+      color: 'gray',
+    });
+  };
   
   // Handle checkout
   const handleCheckout = async () => {
@@ -233,6 +286,7 @@ export default function CartPage() {
         },
         delivery_cost_cents: deliveryCost,
         payment_method: 'card',
+        promo_code: promoCode || undefined,
       };
       
       if (deliveryMethod === 'russian_post') {
@@ -364,8 +418,25 @@ export default function CartPage() {
                     />
                     
                     <Box style={{ flex: 1 }}>
-                      <Text fw={600} style={{ color: '#fbf6ee' }}>{item.sku.title}</Text>
+                      <Group gap="xs" align="center">
+                        <Text fw={600} style={{ color: '#fbf6ee' }}>{item.sku.title}</Text>
+                        {item.sku.discount > 0 && (
+                          <Badge size="sm" color="red" variant="filled">
+                            -{Math.round(item.sku.discount / item.sku.original_price * 100)}%
+                          </Badge>
+                        )}
+                      </Group>
                       <Text size="sm" c="#a89880">{item.sku.weight}г</Text>
+                      {item.sku.discount > 0 && (
+                        <Group gap="xs" mt={2}>
+                          <Text size="xs" c="#a89880" td="line-through">
+                            {formatPrice(item.sku.original_price)}
+                          </Text>
+                          <Text size="xs" c="#4ade80">
+                            {formatPrice(item.sku.price)}
+                          </Text>
+                        </Group>
+                      )}
                     </Box>
                     
                     <Group gap="xs">
@@ -400,13 +471,91 @@ export default function CartPage() {
               
               <Divider my="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
               
+              {/* Promo Code Input */}
+              <Card
+                p="md"
+                radius="md"
+                style={{
+                  background: 'rgba(18,14,10,0.5)',
+                  border: '1px solid rgba(212,137,79,0.1)',
+                }}
+              >
+                <Text size="sm" fw={500} mb="sm" style={{ color: '#e8dcc8' }}>
+                  <IconTicket size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Промокод
+                </Text>
+                {promoCode ? (
+                  <Group>
+                    <Badge 
+                      size="lg" 
+                      color="green" 
+                      variant="light"
+                      rightSection={
+                        <ActionIcon size="xs" color="green" variant="transparent" onClick={handleRemovePromo}>
+                          <IconX size={12} />
+                        </ActionIcon>
+                      }
+                    >
+                      {promoCode}
+                    </Badge>
+                    <Text size="sm" c="#4ade80">Скидка: {formatPrice(promoDiscount)}</Text>
+                  </Group>
+                ) : (
+                  <Group>
+                    <TextInput
+                      placeholder="Введите промокод"
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      style={{ flex: 1 }}
+                      styles={{
+                        input: { 
+                          background: 'rgba(255,255,255,0.05)', 
+                          color: '#fbf6ee', 
+                          borderColor: 'rgba(212,137,79,0.2)',
+                          textTransform: 'uppercase'
+                        },
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                    />
+                    <Button
+                      variant="light"
+                      color="orange"
+                      onClick={handleApplyPromo}
+                      loading={isApplyingPromo}
+                      disabled={!promoInput.trim()}
+                    >
+                      Применить
+                    </Button>
+                  </Group>
+                )}
+              </Card>
+              
+              <Divider my="md" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+              
               <Group justify="space-between">
                 <Text c="#a89880">Товары ({items.length})</Text>
-                <Text fw={600} style={{ color: '#fbf6ee' }}>{formatPrice(totalAmount)}</Text>
+                <Text style={{ color: '#e8dcc8' }}>{formatPrice(totalAmount)}</Text>
               </Group>
+              {discountAmount > 0 && (
+                <Group justify="space-between">
+                  <Text c="#a89880">Скидка на товары</Text>
+                  <Text style={{ color: '#4ade80' }}>-{formatPrice(discountAmount)}</Text>
+                </Group>
+              )}
+              {promoDiscount > 0 && (
+                <Group justify="space-between">
+                  <Text c="#a89880">Скидка по промокоду</Text>
+                  <Text style={{ color: '#4ade80' }}>-{formatPrice(promoDiscount)}</Text>
+                </Group>
+              )}
               <Group justify="space-between">
                 <Text c="#a89880">Общий вес</Text>
                 <Text style={{ color: '#e8dcc8' }}>{(totalWeight / 1000).toFixed(2)} кг</Text>
+              </Group>
+              <Divider my="xs" style={{ borderColor: 'rgba(212,137,79,0.1)' }} />
+              <Group justify="space-between">
+                <Text fw={600} style={{ color: '#fbf6ee' }}>Итого</Text>
+                <Text fw={700} size="lg" style={{ color: '#d4894f' }}>{formatPrice(finalAmount)}</Text>
               </Group>
             </Stack>
             
@@ -681,6 +830,18 @@ export default function CartPage() {
                     <Text c="#a89880">Товары ({items.length})</Text>
                     <Text style={{ color: '#e8dcc8' }}>{formatPrice(totalAmount)}</Text>
                   </Group>
+                  {discountAmount > 0 && (
+                    <Group justify="space-between">
+                      <Text c="#a89880">Скидка на товары</Text>
+                      <Text style={{ color: '#4ade80' }}>-{formatPrice(discountAmount)}</Text>
+                    </Group>
+                  )}
+                  {promoDiscount > 0 && (
+                    <Group justify="space-between">
+                      <Text c="#a89880">Промокод ({promoCode})</Text>
+                      <Text style={{ color: '#4ade80' }}>-{formatPrice(promoDiscount)}</Text>
+                    </Group>
+                  )}
                   <Group justify="space-between">
                     <Text c="#a89880">Доставка ({deliveryMethod === 'pickup' ? 'Самовывоз' : 'Почта России'})</Text>
                     <Text style={{ color: deliveryCost === 0 ? '#4ade80' : '#e8dcc8' }}>

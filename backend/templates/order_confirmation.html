@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 style="color: #8b4513; border-bottom: 1px dashed #d2b48c; padding-bottom: 10px;">🍵 Свиток Заказа</h2>
+    
+    <p>Приветствуем тебя, <strong>{{ customer_name }}</strong>!</p>
+    
+    <p>Твой заказ был принят Гильдией Чайных Мастеров! Скоро наши лучшие травники и алхимики начнут собирать твоё сокровище.</p>
+    
+    <!-- Order Info -->
+    <div style="background-color: #fdf5e6; padding: 20px; border: 2px solid #d2b48c; border-radius: 4px; margin: 25px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">📋 Номер заказа:</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #5c4033;">#{{ order_id }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">💰 Номер платежа:</td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #5c4033;">{{ payment_id }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">📅 Дата заказа:</td>
+                <td style="padding: 8px 0; text-align: right; color: #5c4033;">{{ order_date }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Order Items -->
+    <h3 style="color: #6b8e23; margin-top: 30px; border-bottom: 1px solid #d2b48c; padding-bottom: 8px;">📦 Содержимое Сундука</h3>
+    
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+            <tr style="background-color: #f5f0e1;">
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #d2b48c; color: #5c4033;">Товар</th>
+                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #d2b48c; color: #5c4033;">Кол-во</th>
+                <th style="padding: 12px; text-align: right; border-bottom: 2px solid #d2b48c; color: #5c4033;">Цена</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px dashed #d2b48c; color: #4a3b2a;">
+                    <strong>{{ item.name }}</strong>
+                    {% if item.variant %}
+                    <br><span style="font-size: 0.85em; color: #8b7355;">{{ item.variant }}</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 12px; text-align: center; border-bottom: 1px dashed #d2b48c; color: #4a3b2a;">{{ item.quantity }}</td>
+                <td style="padding: 12px; text-align: right; border-bottom: 1px dashed #d2b48c; color: #4a3b2a;">{{ item.price }} ₽</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Summary -->
+    <div style="background-color: #f5f0e1; padding: 20px; border-radius: 4px; margin: 25px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">Сумма товаров:</td>
+                <td style="padding: 8px 0; text-align: right; color: #5c4033;">{{ subtotal }} ₽</td>
+            </tr>
+            
+            {% if discount_amount > 0 %}
+            <tr>
+                <td style="padding: 8px 0; color: #6b8e23;">
+                    🎁 Скидка
+                    {% if promo_code %}
+                    <span style="background-color: #6b8e23; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.85em; margin-left: 5px;">{{ promo_code }}</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 8px 0; text-align: right; color: #6b8e23; font-weight: bold;">-{{ discount_amount }} ₽</td>
+            </tr>
+            {% endif %}
+            
+            <tr>
+                <td style="padding: 8px 0; color: #8b7355;">🚚 Доставка ({{ delivery_method }}):</td>
+                <td style="padding: 8px 0; text-align: right; color: #5c4033;">
+                    {% if delivery_cost > 0 %}
+                    {{ delivery_cost }} ₽
+                    {% else %}
+                    <span style="color: #6b8e23;">Бесплатно</span>
+                    {% endif %}
+                </td>
+            </tr>
+            
+            <tr style="border-top: 2px solid #8b5a2b;">
+                <td style="padding: 15px 0 8px 0; font-size: 1.2em; font-weight: bold; color: #5c4033;">✨ Итого к оплате:</td>
+                <td style="padding: 15px 0 8px 0; text-align: right; font-size: 1.3em; font-weight: bold; color: #8b0000;">{{ total }} ₽</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Delivery Info -->
+    {% if shipping_address %}
+    <div style="background-color: #fdf5e6; padding: 15px; border: 1px solid #d2b48c; border-radius: 4px; margin: 20px 0;">
+        <p style="margin: 0 0 10px 0; color: #8b7355; font-weight: bold;">📍 Адрес доставки:</p>
+        <p style="margin: 0; color: #5c4033;">{{ shipping_address }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Status Message -->
+    <div style="background-color: #f0fff0; padding: 15px; border-left: 4px solid #6b8e23; margin: 25px 0;">
+        <p style="margin: 0; color: #556b2f;"><strong>📬 Статус:</strong> Оплачен и передан в обработку. Мы уведомим тебя, когда посылка отправится в путь!</p>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="{{ order_link }}" class="button">Посмотреть Заказ</a>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em; color: #8b7355; font-style: italic; text-align: center;">Благодарим за доверие к нашей Гильдии! 🍃<br>Да принесёт тебе этот чай силу и вдохновение!</p>
+{% endblock %}

@@ -16,6 +16,9 @@ import {
   Skeleton,
   Textarea,
   Avatar,
+  Menu,
+  Modal,
+  TextInput,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -24,7 +27,11 @@ import {
   IconArrowLeft,
   IconShare,
   IconCalendar,
+  IconTrash,
+  IconFlag,
 } from '@tabler/icons-react';
+import { IconDotsVertical } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { notifications } from '@mantine/notifications';
@@ -38,6 +45,9 @@ export default function ArticleDetailPage() {
   const slug = params.slug as string;
 
   const [comment, setComment] = useState('');
+  const [reportModalOpened, { open: openReportModal, close: closeReportModal }] = useDisclosure(false);
+  const [reportingCommentId, setReportingCommentId] = useState<number | null>(null);
+  const [reportReason, setReportReason] = useState('');
   const { user } = useAuthStore();
 
   const { data: articleResponse, isLoading } = useQuery({
@@ -90,6 +100,59 @@ export default function ArticleDetailPage() {
       });
     },
   });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: number) => interactionsApi.deleteComment(commentId),
+    onSuccess: () => {
+      refetchComments();
+      queryClient.invalidateQueries({ queryKey: ['article', slug] });
+      notifications.show({
+        title: 'Комментарий удалён',
+        message: 'Ваш комментарий успешно удалён',
+        color: 'green',
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Не удалось удалить комментарий',
+        color: 'red',
+      });
+    },
+  });
+
+  const reportCommentMutation = useMutation({
+    mutationFn: ({ commentId, reason }: { commentId: number; reason: string }) =>
+      interactionsApi.reportComment(commentId, { reason }),
+    onSuccess: () => {
+      closeReportModal();
+      setReportReason('');
+      setReportingCommentId(null);
+      notifications.show({
+        title: 'Жалоба отправлена',
+        message: 'Спасибо! Мы рассмотрим вашу жалобу',
+        color: 'green',
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Не удалось отправить жалобу',
+        color: 'red',
+      });
+    },
+  });
+
+  const handleOpenReport = (commentId: number) => {
+    setReportingCommentId(commentId);
+    openReportModal();
+  };
+
+  const handleSubmitReport = () => {
+    if (reportingCommentId && reportReason.trim()) {
+      reportCommentMutation.mutate({ commentId: reportingCommentId, reason: reportReason });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -285,20 +348,50 @@ export default function ArticleDetailPage() {
                   border: '1px solid rgba(255, 255, 255, 0.03)',
                 }}
               >
-                <Group gap="md" mb="sm">
-                  <Avatar 
-                    radius="xl" 
-                    size="md"
-                    src={c.user?.avatar_url}
-                  >
-                    {c.user?.username?.charAt(0).toUpperCase() || 'U'}
-                  </Avatar>
-                  <Box>
-                    <Text fw={600} size="sm">{c.user?.username || 'Пользователь'}</Text>
-                    <Text size="xs" c="dimmed">
-                      {new Date(c.created_at).toLocaleDateString('ru-RU')}
-                    </Text>
-                  </Box>
+                <Group gap="md" mb="sm" justify="space-between">
+                  <Group gap="md">
+                    <Avatar 
+                      radius="xl" 
+                      size="md"
+                      src={c.user?.avatar_url}
+                    >
+                      {c.user?.username?.charAt(0).toUpperCase() || 'U'}
+                    </Avatar>
+                    <Box>
+                      <Text fw={600} size="sm">{c.user?.username || 'Пользователь'}</Text>
+                      <Text size="xs" c="dimmed">
+                        {new Date(c.created_at).toLocaleDateString('ru-RU')}
+                      </Text>
+                    </Box>
+                  </Group>
+                  {user && (
+                    <Menu shadow="md" width={200}>
+                      <Menu.Target>
+                        <ActionIcon variant="subtle" color="gray">
+                          <IconDotsVertical size={16} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        {c.user_id === user.id ? (
+                          <Menu.Item
+                            color="red"
+                            leftSection={<IconTrash size={14} />}
+                            onClick={() => deleteCommentMutation.mutate(c.id)}
+                          >
+                            Удалить
+                          </Menu.Item>
+                        ) : (
+                          <Menu.Item
+                            color="orange"
+                            leftSection={<IconFlag size={14} />}
+                            onClick={() => handleOpenReport(c.id)}
+                          >
+                            Пожаловаться
+                          </Menu.Item>
+                        )}
+                      </Menu.Dropdown>
+                    </Menu>
+                  )}
                 </Group>
                 <Text style={{ lineHeight: 1.8 }}>{c.content}</Text>
               </Card>
@@ -310,6 +403,39 @@ export default function ArticleDetailPage() {
           </Text>
         )}
       </Box>
+
+      {/* Report Modal */}
+      <Modal
+        opened={reportModalOpened}
+        onClose={closeReportModal}
+        title="Пожаловаться на комментарий"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Опишите причину жалобы. Мы рассмотрим её в ближайшее время.
+          </Text>
+          <Textarea
+            placeholder="Укажите причину жалобы..."
+            value={reportReason}
+            onChange={(e) => setReportReason(e.currentTarget.value)}
+            minRows={3}
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="subtle" onClick={closeReportModal}>
+              Отмена
+            </Button>
+            <Button
+              color="orange"
+              onClick={handleSubmitReport}
+              loading={reportCommentMutation.isPending}
+              disabled={!reportReason.trim()}
+            >
+              Отправить жалобу
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Container>
   );
 }

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 style="color: #8b4513; border-bottom: 1px dashed #d2b48c; padding-bottom: 10px;">📜 Смена Магического Адреса</h2>
+    
+    <p>Приветствуем тебя, <strong>{{ username }}</strong>!</p>
+    
+    <p>До нас дошла весть, что ты желаешь перенести свой магический адрес в новые земли. Чтобы завершить этот ритуал перемещения, используй следующую руну подтверждения:</p>
+    
+    <div style="background-color: #fdf5e6; padding: 20px; border: 2px solid #d2b48c; border-radius: 4px; margin: 25px 0; text-align: center;">
+        <p style="margin: 0 0 10px 0; color: #8b7355; font-size: 0.9em;">Новый адрес:</p>
+        <span style="font-size: 1.2em; color: #5c4033; font-weight: bold;">{{ new_email }}</span>
+    </div>
+    
+    <div style="background-color: #fdf5e6; padding: 20px; border: 2px solid #d2b48c; border-radius: 4px; margin: 25px 0; text-align: center; position: relative;">
+        <span style="font-size: 1.5em; letter-spacing: 4px; color: #8b0000; font-weight: bold; font-family: 'Courier New', monospace;">{{ token }}</span>
+    </div>
+
+    <p>Или коснись древней печати ниже, чтобы мгновенно завершить ритуал:</p>
+    
+    <div style="text-align: center;">
+        <a href="{{ link }}" class="button">Подтвердить Новый Адрес</a>
+    </div>
+
+    <div style="background-color: #fff0f0; padding: 15px; border-left: 4px solid #8b0000; margin: 25px 0;">
+        <p style="margin: 0; color: #8b0000;"><strong>⚠️ Предупреждение!</strong> Если ты не запрашивал смену адреса, немедленно смени пароль и свяжись с Советом Хранителей. Возможно, кто-то пытается похитить твою личность!</p>
+    </div>
+
+    <p style="margin-top: 30px; font-size: 0.9em; color: #8b7355;">Магия этой ссылки истечёт через 24 часа. Поспеши, Путник!</p>
+{% endblock %}

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dependencies import deps
 from backend.services.order import order_service
 from backend.schemas import order as order_schemas
-from backend.models.order import OrderStatus
+from backend.models.order import Order, OrderStatus
 
 router = APIRouter()
 
@@ -68,6 +68,25 @@ async def get_order_detail(
             response.payment_url = payment_url
     
     return response
+
+@router.get("/{order_id}/status")
+async def get_order_status(
+    order_id: int,
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    """
+    Get order payment status. Public endpoint for payment success page.
+    Only returns minimal info for security.
+    """
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Check and update payment status if awaiting payment
+    if order.status == OrderStatus.AWAITING_PAYMENT:
+        order = await order_service.check_and_update_order_status(db, order)
+    
+    return {"order_id": order.id, "status": order.status.value}
 
 @router.post("/{order_id}/cancel", response_model=order_schemas.OrderResponse)
 async def cancel_order(

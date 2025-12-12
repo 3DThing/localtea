@@ -1,10 +1,11 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, delete, func
+from sqlalchemy import select, and_, delete, func, update
 from sqlalchemy.orm import selectinload, joinedload
 from fastapi import HTTPException, status
 from backend.models.cart import Cart, CartItem
 from backend.models.catalog import SKU, Product, ProductImage
+from backend.models.promo_code import PromoCode
 from backend.schemas import cart as cart_schemas
 
 class CartService:
@@ -41,7 +42,13 @@ class CartService:
             
         return cart
 
-    async def get_cart_with_items(self, db: AsyncSession, user_id: Optional[int] = None, session_id: Optional[str] = None) -> cart_schemas.CartResponse:
+    async def get_cart_with_items(
+        self, 
+        db: AsyncSession, 
+        user_id: Optional[int] = None, 
+        session_id: Optional[str] = None,
+        promo_code: Optional[str] = None
+    ) -> cart_schemas.CartResponse:
         cart = await self.get_cart(db, user_id, session_id)
         if not cart:
              # Should not happen as get_cart creates one
@@ -49,19 +56,27 @@ class CartService:
 
         # Calculate totals and format response
         items_response = []
-        total_amount = 0
-        
-        # We need to ensure items are loaded. get_cart loads them if it fetches, but if it creates, it's empty.
-        # If it was fetched, selectinload was used.
+        total_amount = 0  # Сумма без скидок
+        discount_amount = 0  # Скидки на товары
         
         for item in cart.items:
-            # Check stock availability (optional here, but good for display)
-            # For now just display what's in cart
+            # Оригинальная цена (до скидки)
+            original_price = item.sku.price_cents
+            # Скидка на товар
+            item_discount = item.sku.discount_cents or 0
+            # Финальная цена (со скидкой товара)
+            final_price = original_price - item_discount
+            if final_price < 0:
+                final_price = 0
             
-            # Calculate price
-            price = item.fixed_price_cents if item.fixed_price_cents is not None else item.sku.price_cents
-            item_total = price * item.quantity
-            total_amount += item_total
+            # Если есть фиксированная цена в корзине - используем её
+            if item.fixed_price_cents is not None:
+                final_price = item.fixed_price_cents
+                item_discount = max(0, original_price - final_price)
+            
+            item_total = final_price * item.quantity
+            total_amount += original_price * item.quantity
+            discount_amount += item_discount * item.quantity
             
             # Get main image
             main_image = None
@@ -72,7 +87,9 @@ class CartService:
                 id=item.sku.id,
                 title=item.sku.product.title,
                 weight=item.sku.weight,
-                price_cents=price,
+                price_cents=final_price,
+                original_price_cents=original_price,
+                discount_cents=item_discount,
                 image=main_image
             )
             
@@ -82,11 +99,99 @@ class CartService:
                 quantity=item.quantity,
                 total_cents=item_total
             ))
+        
+        # Сумма после скидок на товары
+        subtotal = total_amount - discount_amount
+        
+        # Проверяем и применяем промокод
+        promo_discount = 0
+        applied_promo_code = None
+        
+        if promo_code:
+            promo = await self._get_valid_promo(db, promo_code, subtotal, user_id)
+            if promo:
+                promo_discount = promo.calculate_discount(subtotal)
+                applied_promo_code = promo.code
+        
+        final_amount = subtotal - promo_discount
+        if final_amount < 0:
+            final_amount = 0
             
         return cart_schemas.CartResponse(
             id=cart.id,
             total_amount_cents=total_amount,
+            discount_amount_cents=discount_amount,
+            promo_discount_cents=promo_discount,
+            promo_code=applied_promo_code,
+            final_amount_cents=final_amount,
             items=items_response
+        )
+    
+    async def _get_valid_promo(
+        self, 
+        db: AsyncSession, 
+        code: str, 
+        order_amount: int,
+        user_id: Optional[int] = None
+    ) -> Optional[PromoCode]:
+        """Проверить и получить валидный промокод"""
+        result = await db.execute(
+            select(PromoCode).where(PromoCode.code == code.upper())
+        )
+        promo = result.scalars().first()
+        
+        if not promo:
+            return None
+        
+        if not promo.is_valid():
+            return None
+        
+        if order_amount < promo.min_order_amount_cents:
+            return None
+        
+        # TODO: проверить использование на пользователя если нужно
+        
+        return promo
+    
+    async def apply_promo_code(
+        self, 
+        db: AsyncSession, 
+        user_id: Optional[int], 
+        session_id: Optional[str],
+        code: str
+    ) -> cart_schemas.PromoCodeResponse:
+        """Применить промокод и вернуть информацию о скидке"""
+        cart = await self.get_cart_with_items(db, user_id, session_id)
+        
+        # Сумма после скидок на товары
+        subtotal = cart.total_amount_cents - cart.discount_amount_cents
+        
+        result = await db.execute(
+            select(PromoCode).where(PromoCode.code == code.upper())
+        )
+        promo = result.scalars().first()
+        
+        if not promo:
+            raise HTTPException(status_code=404, detail="Промокод не найден")
+        
+        if not promo.is_valid():
+            raise HTTPException(status_code=400, detail="Промокод недействителен или истёк")
+        
+        if subtotal < promo.min_order_amount_cents:
+            min_amount = promo.min_order_amount_cents / 100
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Минимальная сумма заказа для этого промокода: {min_amount:.0f} ₽"
+            )
+        
+        discount_amount = promo.calculate_discount(subtotal)
+        
+        return cart_schemas.PromoCodeResponse(
+            code=promo.code,
+            discount_type=promo.discount_type.value,
+            discount_value=promo.discount_value,
+            discount_amount_cents=discount_amount,
+            message=f"Промокод применён! Скидка: {discount_amount / 100:.0f} ₽"
         )
 
     async def add_item(self, db: AsyncSession, user_id: Optional[int], session_id: Optional[str], item_in: cart_schemas.CartItemCreate):

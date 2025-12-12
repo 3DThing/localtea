@@ -9,6 +9,7 @@ import hashlib
 from backend.core.config import settings
 from backend.db.session import get_db
 from backend.models.user import User
+from backend.utils.client_info import get_client_ip
 
 async def get_current_user_optional(
     request: Request,
@@ -38,7 +39,7 @@ async def get_current_user_optional(
     return user
 
 def get_fingerprint(request: Request) -> str:
-    ip = request.client.host
+    ip = get_client_ip(request)
     user_agent = request.headers.get("user-agent", "")
     # Use a salt if possible, but for now just hash
     raw = f"{ip}|{user_agent}"

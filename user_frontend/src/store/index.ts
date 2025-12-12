@@ -167,7 +167,9 @@ interface CartItem {
     id: number;
     title: string;
     weight: number;
-    price_cents: number;
+    price: number;  // Цена со скидкой
+    original_price: number;  // Оригинальная цена
+    discount: number;  // Скидка на товар
     image?: string;
   };
   quantity: number;
@@ -176,27 +178,42 @@ interface CartItem {
 
 interface CartState {
   items: CartItem[];
-  totalAmount: number;
+  totalAmount: number;  // Сумма без скидок
+  discountAmount: number;  // Скидки на товары
+  promoDiscount: number;  // Скидка по промокоду
+  promoCode: string | null;
+  finalAmount: number;  // Итого со всеми скидками
   isLoading: boolean;
-  fetchCart: () => Promise<void>;
+  fetchCart: (promoCode?: string) => Promise<void>;
   addItem: (skuId: number, quantity: number) => Promise<void>;
   updateItem: (itemId: number, quantity: number) => Promise<void>;
   removeItem: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  applyPromoCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  clearPromoCode: () => void;
 }
 
-export const useCartStore = create<CartState>((set) => ({
+export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   totalAmount: 0,
+  discountAmount: 0,
+  promoDiscount: 0,
+  promoCode: null,
+  finalAmount: 0,
   isLoading: false,
 
-  fetchCart: async () => {
+  fetchCart: async (promoCode?: string) => {
     set({ isLoading: true });
     try {
-      const response = await cartApi.getCart();
+      const code = promoCode || get().promoCode;
+      const response = await cartApi.getCart(code || undefined);
       set({ 
         items: response.data.items || [], 
         totalAmount: response.data.total_amount_cents || 0,
+        discountAmount: response.data.discount_amount_cents || 0,
+        promoDiscount: response.data.promo_discount_cents || 0,
+        promoCode: response.data.promo_code || null,
+        finalAmount: response.data.final_amount_cents || 0,
         isLoading: false 
       });
     } catch (error) {
@@ -207,12 +224,20 @@ export const useCartStore = create<CartState>((set) => ({
   addItem: async (skuId: number, quantity: number) => {
     set({ isLoading: true });
     try {
+      const promoCode = get().promoCode;
       const response = await cartApi.addItem({ sku_id: skuId, quantity });
-      set({ 
-        items: response.data.items || [], 
-        totalAmount: response.data.total_amount_cents || 0,
-        isLoading: false 
-      });
+      // После добавления перезагружаем с промокодом
+      if (promoCode) {
+        await get().fetchCart(promoCode);
+      } else {
+        set({ 
+          items: response.data.items || [], 
+          totalAmount: response.data.total_amount_cents || 0,
+          discountAmount: response.data.discount_amount_cents || 0,
+          finalAmount: response.data.final_amount_cents || 0,
+          isLoading: false 
+        });
+      }
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -224,40 +249,23 @@ export const useCartStore = create<CartState>((set) => ({
     set((state) => {
       const updatedItems = state.items.map(item => {
         if (item.id === itemId) {
-          const newTotal = item.sku.price_cents * quantity;
+          const newTotal = item.sku.price * quantity;
           return { ...item, quantity, total_cents: newTotal };
         }
         return item;
       });
-      const newTotal = updatedItems.reduce((sum, item) => sum + item.total_cents, 0);
-      return { items: updatedItems, totalAmount: newTotal };
+      const newFinal = updatedItems.reduce((sum, item) => sum + item.total_cents, 0) - state.promoDiscount;
+      return { items: updatedItems, finalAmount: Math.max(0, newFinal) };
     });
 
     try {
-      const response = await cartApi.updateItem(itemId, { quantity });
-      // Синхронизируем с сервером, но сохраняем порядок
-      set((state) => {
-        const serverItems = response.data.items || [];
-        // Сохраняем текущий порядок, обновляя только данные
-        const orderedItems = state.items.map(item => {
-          const serverItem = serverItems.find(si => si.id === item.id);
-          return serverItem || item;
-        });
-        return { 
-          items: orderedItems,
-          totalAmount: response.data.total_amount_cents || 0,
-          isLoading: false 
-        };
-      });
+      const promoCode = get().promoCode;
+      await cartApi.updateItem(itemId, { quantity });
+      // Перезагружаем с промокодом для актуальных расчётов
+      await get().fetchCart(promoCode || undefined);
     } catch (error) {
-      // При ошибке откатываем изменения
       set({ isLoading: false });
-      // Перезагружаем корзину с сервера
-      const response = await cartApi.getCart();
-      set({ 
-        items: response.data.items || [], 
-        totalAmount: response.data.total_amount_cents || 0 
-      });
+      await get().fetchCart();
       throw error;
     }
   },
@@ -265,12 +273,9 @@ export const useCartStore = create<CartState>((set) => ({
   removeItem: async (itemId: number) => {
     set({ isLoading: true });
     try {
-      const response = await cartApi.removeItem(itemId);
-      set({ 
-        items: response.data.items || [], 
-        totalAmount: response.data.total_amount_cents || 0,
-        isLoading: false 
-      });
+      const promoCode = get().promoCode;
+      await cartApi.removeItem(itemId);
+      await get().fetchCart(promoCode || undefined);
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -281,10 +286,35 @@ export const useCartStore = create<CartState>((set) => ({
     set({ isLoading: true });
     try {
       await cartApi.clearCart();
-      set({ items: [], totalAmount: 0, isLoading: false });
+      set({ 
+        items: [], 
+        totalAmount: 0, 
+        discountAmount: 0,
+        promoDiscount: 0,
+        promoCode: null,
+        finalAmount: 0,
+        isLoading: false 
+      });
     } catch (error) {
       set({ isLoading: false });
       throw error;
     }
+  },
+
+  applyPromoCode: async (code: string) => {
+    try {
+      const response = await cartApi.applyPromoCode(code);
+      // Перезагружаем корзину с примененным промокодом
+      await get().fetchCart(code);
+      return { success: true, message: response.data.message };
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Не удалось применить промокод';
+      return { success: false, message };
+    }
+  },
+
+  clearPromoCode: () => {
+    set({ promoCode: null, promoDiscount: 0 });
+    get().fetchCart();
   },
 }));

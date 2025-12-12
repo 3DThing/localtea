@@ -1,13 +1,12 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import logging
 import os
 import mimetypes
 from backend.core.config import settings
-from admin_backend.api.v1 import auth, users, catalog, orders, dashboard, blog
+from admin_backend.api.v1 import auth, users, catalog, orders, dashboard, blog, moderation, promo_codes, inventory, refunds, finance
 
 # Добавляем MIME type для WebP
 mimetypes.add_type("image/webp", ".webp")
@@ -19,23 +18,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Set all CORS enabled origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000", 
-        "http://127.0.0.1:3001",
-        "http://5.129.219.127:3000",
-        "http://5.129.219.127:3001",
-        "https://admin.localtea.ru",
-        "https://apiadmin.localtea.ru",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS обрабатывается в Nginx
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -60,6 +43,11 @@ app.include_router(catalog.router, prefix="/api/v1/catalog", tags=["catalog"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(blog.router, prefix="/api/v1/blog", tags=["blog"])
+app.include_router(moderation.router, prefix="/api/v1/moderation", tags=["moderation"])
+app.include_router(promo_codes.router, prefix="/api/v1/promo-codes", tags=["promo-codes"])
+app.include_router(inventory.router, prefix="/api/v1/inventory", tags=["inventory"])
+app.include_router(refunds.router, prefix="/api/v1/refunds", tags=["refunds"])
+app.include_router(finance.router, prefix="/api/v1/finance", tags=["finance"])
 
 # Serve uploaded files
 UPLOAD_DIR = "/app/uploads"

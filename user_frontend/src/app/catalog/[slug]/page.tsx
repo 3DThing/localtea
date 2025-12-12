@@ -20,6 +20,8 @@ import {
   Skeleton,
   Textarea,
   Avatar,
+  Menu,
+  Modal,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -30,7 +32,11 @@ import {
   IconMinus,
   IconPlus,
   IconArrowLeft,
+  IconDotsVertical,
+  IconTrash,
+  IconFlag,
 } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { notifications } from '@mantine/notifications';
@@ -45,8 +51,12 @@ export default function ProductDetailPage() {
   const slug = params.slug as string;
 
   const [selectedSku, setSelectedSku] = useState<any>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [comment, setComment] = useState('');
+  const [reportModalOpened, { open: openReportModal, close: closeReportModal }] = useDisclosure(false);
+  const [reportingCommentId, setReportingCommentId] = useState<number | null>(null);
+  const [reportReason, setReportReason] = useState('');
 
   const { addItem, isLoading: cartLoading } = useCartStore();
   const { user } = useAuthStore();
@@ -139,6 +149,59 @@ export default function ProductDetailPage() {
     },
   });
 
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: number) => interactionsApi.deleteComment(commentId),
+    onSuccess: () => {
+      refetchComments();
+      queryClient.invalidateQueries({ queryKey: ['product', slug] });
+      notifications.show({
+        title: 'Отзыв удалён',
+        message: 'Ваш отзыв успешно удалён',
+        color: 'green',
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Не удалось удалить отзыв',
+        color: 'red',
+      });
+    },
+  });
+
+  const reportCommentMutation = useMutation({
+    mutationFn: ({ commentId, reason }: { commentId: number; reason: string }) =>
+      interactionsApi.reportComment(commentId, { reason }),
+    onSuccess: () => {
+      closeReportModal();
+      setReportReason('');
+      setReportingCommentId(null);
+      notifications.show({
+        title: 'Жалоба отправлена',
+        message: 'Спасибо! Мы рассмотрим вашу жалобу',
+        color: 'green',
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: 'Ошибка',
+        message: 'Не удалось отправить жалобу',
+        color: 'red',
+      });
+    },
+  });
+
+  const handleOpenReport = (commentId: number) => {
+    setReportingCommentId(commentId);
+    openReportModal();
+  };
+
+  const handleSubmitReport = () => {
+    if (reportingCommentId && reportReason.trim()) {
+      reportCommentMutation.mutate({ commentId: reportingCommentId, reason: reportReason });
+    }
+  };
+
   const handleLike = () => {
     if (!user) {
       notifications.show({
@@ -208,7 +271,8 @@ export default function ProductDetailPage() {
     );
   }
 
-  const mainImage = product.images?.find((img: any) => img.is_main)?.url
+  const mainImage = product.images?.[selectedImageIndex]?.url
+    || product.images?.find((img: any) => img.is_main)?.url
     || product.images?.[0]?.url
     || 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600';
 
@@ -248,20 +312,28 @@ export default function ProductDetailPage() {
           {/* Thumbnails */}
           {product.images?.length > 1 && (
             <Group gap="xs" mt="md">
-              {product.images.map((img: any) => (
-                <Image
+              {product.images.map((img: any, index: number) => (
+                <Box
                   key={img.id}
-                  src={img.url}
-                  alt=""
-                  w={80}
-                  h={80}
-                  radius="md"
-                  style={{
-                    objectFit: 'cover',
-                    cursor: 'pointer',
-                    border: '2px solid rgba(117, 61, 218, 0.3)',
-                  }}
-                />
+                  onClick={() => setSelectedImageIndex(index)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Image
+                    src={img.url}
+                    alt=""
+                    w={80}
+                    h={80}
+                    radius="md"
+                    style={{
+                      objectFit: 'cover',
+                      border: selectedImageIndex === index 
+                        ? '2px solid rgba(117, 61, 218, 0.8)' 
+                        : '2px solid rgba(117, 61, 218, 0.3)',
+                      opacity: selectedImageIndex === index ? 1 : 0.7,
+                      transition: 'all 0.2s ease',
+                    }}
+                  />
+                </Box>
               ))}
             </Group>
           )}
@@ -491,20 +563,50 @@ export default function ProductDetailPage() {
                         border: '1px solid rgba(255, 255, 255, 0.03)',
                       }}
                     >
-                      <Group gap="md" mb="sm">
-                        <Avatar 
-                          radius="xl" 
-                          size="md"
-                          src={c.user?.avatar_url}
-                        >
-                          {c.user?.username?.charAt(0).toUpperCase() || 'U'}
-                        </Avatar>
-                        <Box>
-                          <Text fw={600} size="sm">{c.user?.username || 'Пользователь'}</Text>
-                          <Text size="xs" c="dimmed">
-                            {new Date(c.created_at).toLocaleDateString('ru-RU')}
-                          </Text>
-                        </Box>
+                      <Group gap="md" mb="sm" justify="space-between">
+                        <Group gap="md">
+                          <Avatar 
+                            radius="xl" 
+                            size="md"
+                            src={c.user?.avatar_url}
+                          >
+                            {c.user?.username?.charAt(0).toUpperCase() || 'U'}
+                          </Avatar>
+                          <Box>
+                            <Text fw={600} size="sm">{c.user?.username || 'Пользователь'}</Text>
+                            <Text size="xs" c="dimmed">
+                              {new Date(c.created_at).toLocaleDateString('ru-RU')}
+                            </Text>
+                          </Box>
+                        </Group>
+                        {user && (
+                          <Menu shadow="md" width={200}>
+                            <Menu.Target>
+                              <ActionIcon variant="subtle" color="gray">
+                                <IconDotsVertical size={16} />
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              {c.user_id === user.id ? (
+                                <Menu.Item
+                                  color="red"
+                                  leftSection={<IconTrash size={14} />}
+                                  onClick={() => deleteCommentMutation.mutate(c.id)}
+                                >
+                                  Удалить
+                                </Menu.Item>
+                              ) : (
+                                <Menu.Item
+                                  color="orange"
+                                  leftSection={<IconFlag size={14} />}
+                                  onClick={() => handleOpenReport(c.id)}
+                                >
+                                  Пожаловаться
+                                </Menu.Item>
+                              )}
+                            </Menu.Dropdown>
+                          </Menu>
+                        )}
                       </Group>
                       <Text style={{ lineHeight: 1.8 }}>{c.content}</Text>
                     </Card>
@@ -519,6 +621,39 @@ export default function ProductDetailPage() {
           </Tabs.Panel>
         </Tabs>
       </Box>
+
+      {/* Report Modal */}
+      <Modal
+        opened={reportModalOpened}
+        onClose={closeReportModal}
+        title="Пожаловаться на отзыв"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Опишите причину жалобы. Мы рассмотрим её в ближайшее время.
+          </Text>
+          <Textarea
+            placeholder="Укажите причину жалобы..."
+            value={reportReason}
+            onChange={(e) => setReportReason(e.currentTarget.value)}
+            minRows={3}
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="subtle" onClick={closeReportModal}>
+              Отмена
+            </Button>
+            <Button
+              color="orange"
+              onClick={handleSubmitReport}
+              loading={reportCommentMutation.isPending}
+              disabled={!reportReason.trim()}
+            >
+              Отправить жалобу
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Container>
   );
 }

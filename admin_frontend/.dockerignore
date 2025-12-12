@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+*.log
+npm-debug.log*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+coverage
+.nyc_output
+*.md
+!README.md
+.DS_Store
+Thumbs.db

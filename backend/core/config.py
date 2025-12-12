@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     ]
 
     DEBUG: bool = False
-    CSRF_ENABLED: bool = False
+    CSRF_ENABLED: bool = True
 
     # Email
     SMTP_SERVER: str
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     YOOKASSA_WEBHOOK_URL: str = "https://api.localtea.ru/api/v1/webhooks/payment/yookassa"
 
     # Phone verification (sms.ru)
-    SMS_RU_API_ID: str = "D9A62F49-2FC5-213A-0404-61F414FB8088"
+    SMS_RU_API_ID: Optional[str] = None
     PHONE_VERIFICATION_TIMEOUT: int = 300  # 5 минут
 
     # Delivery (Russian Post)
@@ -48,8 +48,9 @@ class Settings(BaseSettings):
     # Base URLs for email links and frontend
     BASE_URL: str = "https://localtea.ru"
     API_BASE_URL: str = "https://api.localtea.ru"
+    UPLOADS_BASE_URL: Optional[str] = None
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()

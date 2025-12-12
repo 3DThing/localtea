@@ -35,12 +35,129 @@ EMAILS_FROM_NAME=LocalTea
 
 ### Доступные шаблоны
 
-*   **`base.html`**: Базовый шаблон. Содержит общую структуру HTML, стили (CSS) и "фентези" оформление (фон пергамента, шрифты). Определяет блоки `content` и `footer`, которые переопределяются в конкретных письмах.
-*   **`verification.html`**: Шаблон письма подтверждения регистрации.
-    *   **Переменные контекста**:
-        *   `title`: Заголовок письма.
-        *   `link`: Ссылка для подтверждения (включает токен).
-        *   `token`: Сам токен (для ручного ввода, если требуется).
+| Шаблон | Назначение | Описание |
+|--------|-----------|----------|
+| `base.html` | Базовый шаблон | Общая структура, стили, фэнтези-оформление |
+| `verification.html` | Подтверждение email | Отправляется при регистрации |
+| `password_changed.html` | Смена пароля | Уведомление об успешной смене |
+| `email_change.html` | Смена email | Подтверждение нового адреса |
+| `order_confirmation.html` | Подтверждение заказа | Детали заказа и оплаты |
+| `order_shipped.html` | Отправка заказа | Уведомление с трек-номером |
+
+### Переменные контекста
+
+#### `verification.html`
+*   `title` (str): Заголовок письма.
+*   `token` (str): Код подтверждения.
+*   `link` (str): Ссылка для подтверждения.
+
+#### `password_changed.html`
+*   `username` (str): Имя пользователя.
+*   `changed_at` (str): Дата и время смены пароля.
+
+#### `email_change.html`
+*   `username` (str): Имя пользователя.
+*   `new_email` (str): Новый email адрес.
+*   `token` (str): Код подтверждения.
+*   `link` (str): Ссылка для подтверждения.
+
+#### `order_confirmation.html`
+*   `customer_name` (str): Имя покупателя.
+*   `order_id` (int): Номер заказа.
+*   `payment_id` (str): ID платежа (YooKassa).
+*   `order_date` (str): Дата заказа.
+*   `items` (list): Список товаров:
+    *   `name` (str): Название товара.
+    *   `variant` (str, optional): Вариант/размер.
+    *   `quantity` (int): Количество.
+    *   `price` (str): Цена (форматированная).
+*   `subtotal` (str): Сумма товаров.
+*   `discount_amount` (int): Размер скидки (0 если нет).
+*   `promo_code` (str, optional): Применённый промокод.
+*   `delivery_method` (str): Способ доставки.
+*   `delivery_cost` (int): Стоимость доставки (0 = бесплатно).
+*   `total` (str): Итоговая сумма.
+*   `shipping_address` (str, optional): Адрес доставки.
+*   `order_link` (str): Ссылка на страницу заказа.
+
+#### `order_shipped.html`
+*   `customer_name` (str): Имя покупателя.
+*   `order_id` (int): Номер заказа.
+*   `tracking_number` (str, optional): Трек-номер.
+*   `delivery_method` (str): Способ доставки.
+*   `shipping_address` (str, optional): Адрес доставки.
+*   `estimated_days` (str): Ожидаемый срок ("5-7 дней").
+*   `order_link` (str): Ссылка на страницу заказа.
+
+### Функции отправки
+
+В модуле `backend/utils/email.py` доступны удобные функции:
+
+```python
+from backend.utils.email import (
+    send_verification_email,
+    send_password_changed_email,
+    send_email_change_confirmation,
+    send_order_confirmation_email,
+    send_order_shipped_email
+)
+
+# Подтверждение email
+send_verification_email(
+    email_to="user@example.com",
+    username="Путник",
+    token="ABC123",
+    link="https://localtea.ru/confirm-email?token=ABC123"
+)
+
+# Смена пароля
+send_password_changed_email(
+    email_to="user@example.com",
+    username="Путник"
+)
+
+# Смена email
+send_email_change_confirmation(
+    email_to="new@example.com",
+    username="Путник",
+    new_email="new@example.com",
+    token="XYZ789",
+    link="https://localtea.ru/confirm-email-change?token=XYZ789"
+)
+
+# Подтверждение заказа
+send_order_confirmation_email(
+    email_to="user@example.com",
+    customer_name="Иван Иванов",
+    order_id=12345,
+    payment_id="2a3b4c5d-6e7f-8g9h",
+    order_date="12.12.2025",
+    items=[
+        {"name": "Улун Да Хун Пао", "variant": "100г", "quantity": 2, "price": "1 200"},
+        {"name": "Пуэр Шу", "variant": "50г", "quantity": 1, "price": "800"}
+    ],
+    subtotal="3 200",
+    discount_amount=320,
+    promo_code="TEA10",
+    delivery_method="Почта России",
+    delivery_cost=350,
+    total="3 230",
+    shipping_address="123456, г. Москва, ул. Чайная, д. 1",
+    order_link="https://localtea.ru/profile?tab=orders"
+)
+
+# Отправка заказа
+send_order_shipped_email(
+    email_to="user@example.com",
+    customer_name="Иван Иванов",
+    order_id=12345,
+    tracking_number="RA123456789RU",
+    delivery_method="Почта России",
+    shipping_address="123456, г. Москва, ул. Чайная, д. 1",
+    estimated_days="5-7 рабочих дней",
+    order_link="https://localtea.ru/profile?tab=orders"
+)
+```
 
 ### Стилизация
 

@@ -11,7 +11,7 @@
 ## 2. Технологический стек
 
 ### Core
-*   **Framework**: [Next.js 14+](https://nextjs.org/) (App Router).
+*   **Framework**: [Next.js 15+](https://nextjs.org/) (App Router).
 *   **Language**: TypeScript 5+ (Strict mode).
 *   **Build Tool**: Turbopack (встроен в Next.js).
 

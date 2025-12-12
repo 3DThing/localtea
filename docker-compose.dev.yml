@@ -7,8 +7,6 @@
 #   export COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
 #   docker-compose up admin_frontend
 
-version: '3.3'
-
 services:
   admin_frontend:
     build:

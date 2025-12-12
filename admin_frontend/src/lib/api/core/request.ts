@@ -175,8 +175,8 @@ export const getHeaders = async (config: OpenAPIConfig, options: ApiRequestOptio
         headers['Authorization'] = `Basic ${credentials}`;
     }
 
-    if (options.body !== undefined || options.formData !== undefined) {
-        if (options.mediaType && options.mediaType !== 'multipart/form-data') {
+    if (options.body !== undefined) {
+        if (options.mediaType) {
             headers['Content-Type'] = options.mediaType;
         } else if (isBlob(options.body)) {
             headers['Content-Type'] = options.body.type || 'application/octet-stream';

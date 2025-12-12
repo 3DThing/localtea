@@ -55,8 +55,12 @@ Argon2 является современным победителем конку
 *   **Глобальные лимиты**: Могут быть настроены при необходимости.
 *   **Точечные лимиты**:
     *   `/user/login`: 3 попытки в минуту, 20 в час.
-    *   `/user/registration`: 2 попытки в минуту.
+    *   `/user/registration`: 5 попыток в минуту, 20 в час.
     *   `/user/refresh`: 2 попытки в минуту.
+    *   `/user/phone-verification/start`: 3 попытки в минуту, 10 в час.
+    *   `/interactions/comments`: 5 запросов в минуту.
+    *   `/interactions/likes`: 10 запросов в минуту.
+    *   `/interactions/views`: 20 запросов в минуту.
 *   **Идентификация**: По IP-адресу клиента (`get_remote_address`).
 
 ## 5. CORS (Cross-Origin Resource Sharing)

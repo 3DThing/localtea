@@ -12,6 +12,8 @@ export type UserAdminUpdate = {
     middlename?: (string | null);
     birthdate?: (string | null);
     address?: (string | null);
+    postal_code?: (string | null);
+    phone_number?: (string | null);
     password?: (string | null);
     is_email_confirmed?: (boolean | null);
 };

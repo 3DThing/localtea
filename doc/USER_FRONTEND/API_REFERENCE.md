@@ -1,212 +1,193 @@
-# USER_FRONTEND — API Reference
+# API Reference (User Frontend)
 
 ## API клиент
 
-Расположение: `src/lib/api.ts`
+**Путь**: `src/lib/api.ts`
 
-### Конфигурация
+HTTP клиент на базе Axios с автоматическим обновлением токена.
 
-```typescript
-const API_BASE_URL = '/api/v1';  // Проксируется через Next.js
+**Базовый URL**: `/api/v1` (проксируется через Next.js на `https://api.localtea.ru/api/v1`)
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-```
-
-### Interceptors
-
-#### Request Interceptor
-- Автоматически добавляет CSRF токен из cookies в заголовок `X-CSRF-Token`.
-
-#### Response Interceptor
-- При получении 401 ошибки автоматически пытается обновить Access Token.
-- Использует очередь запросов для предотвращения множественных refresh.
-- При неудачном refresh очищает токен и перенаправляет на логин.
+**Особенности**:
+- Автоматическое добавление CSRF токена из cookies.
+- Автоматическое обновление Access Token при 401 ошибке.
+- Очередь запросов для предотвращения множественных refresh.
 
 ---
 
-## API модули
+## Модули API
 
 ### catalogApi
 
+Работа с каталогом товаров.
+
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `getCategories()` | GET `/catalog/categories` | Список категорий |
-| `getProducts(params)` | GET `/catalog/products` | Список товаров с фильтрами |
-| `getProduct(slug)` | GET `/catalog/products/{slug}` | Детали товара |
+| getCategories | GET `/catalog/categories` | Дерево категорий |
+| getProducts | GET `/catalog/products` | Список товаров с фильтрами |
+| getProduct | GET `/catalog/products/{slug}` | Детали товара по slug |
 
-**Параметры getProducts:**
-```typescript
-{
-  page?: number;
-  limit?: number;
-  category_id?: number;
-  tea_type?: string;
-  sort?: string;
-  q?: string;  // поиск
-}
-```
+**Параметры getProducts**:
+*   `page` (int): Номер страницы.
+*   `limit` (int): Лимит на страницу.
+*   `category_id` (int, optional): Фильтр по категории.
+*   `tea_type` (string, optional): Тип чая.
+*   `sort` (string, optional): Сортировка.
+*   `q` (string, optional): Поисковый запрос.
+
+---
 
 ### blogApi
 
+Работа с блогом.
+
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `getArticles(params)` | GET `/blog/articles/` | Список статей |
-| `getArticle(slug)` | GET `/blog/articles/{slug}` | Детали статьи |
+| getArticles | GET `/blog/articles/` | Список статей |
+| getArticle | GET `/blog/articles/{slug}` | Детали статьи |
+
+---
 
 ### userApi
+
+Аутентификация и профиль пользователя.
 
 #### Аутентификация
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `register(data)` | POST `/user/registration` | Регистрация |
-| `login(data)` | POST `/user/login` | Вход |
-| `logout()` | POST `/user/logout` | Выход |
-| `getProfile()` | GET `/user/get-profile` | Профиль |
-| `refresh()` | POST `/user/refresh` | Обновление токена |
+| register | POST `/user/registration` | Регистрация |
+| login | POST `/user/login` | Вход |
+| logout | POST `/user/logout` | Выход |
+| getProfile | GET `/user/get-profile` | Профиль |
+| refresh | POST `/user/refresh` | Обновление токена |
 
 #### Редактирование профиля
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `updateFirstname(data)` | POST `/user/change-firstname` | Изменить имя |
-| `updateLastname(data)` | POST `/user/change-lastname` | Изменить фамилию |
-| `updateMiddlename(data)` | POST `/user/change-middlename` | Изменить отчество |
-| `updateBirthdate(data)` | POST `/user/change-birthdate` | Изменить дату рождения |
-| `updateAddress(data)` | POST `/user/change-address` | Изменить адрес |
-| `updatePostalCode(data)` | POST `/user/change-postal-code` | Изменить индекс |
-| `updatePhoneNumber(data)` | POST `/user/change-phone-number` | Изменить телефон |
-| `uploadAvatar(file)` | POST `/user/upload-avatar` | Загрузить аватар |
-| `changePassword(data)` | POST `/user/change-password` | Сменить пароль |
-| `changeEmail(data)` | POST `/user/change-email` | Сменить email |
-| `changeUsername(data)` | POST `/user/change-username` | Сменить username |
+| updateFirstname | POST `/user/change-firstname` | Изменить имя |
+| updateLastname | POST `/user/change-lastname` | Изменить фамилию |
+| updateMiddlename | POST `/user/change-middlename` | Изменить отчество |
+| updateBirthdate | POST `/user/change-birthdate` | Изменить дату рождения |
+| updateAddress | POST `/user/change-address` | Изменить адрес |
+| updatePostalCode | POST `/user/change-postal-code` | Изменить индекс |
+| updatePhoneNumber | POST `/user/change-phone-number` | Изменить телефон |
+| uploadAvatar | POST `/user/upload-avatar` | Загрузить аватар |
+| changePassword | POST `/user/change-password` | Сменить пароль |
+| changeEmail | POST `/user/change-email` | Сменить email |
+| changeUsername | POST `/user/change-username` | Сменить username |
 
-#### Email подтверждение
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `confirmEmail(token)` | POST `/user/confirm-email` | Подтвердить email |
-| `confirmEmailChange(token)` | GET `/user/confirm-email-change` | Подтвердить смену email |
-
-#### Верификация телефона
+#### Верификация
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `startPhoneVerification()` | POST `/user/phone-verification/start` | Начать верификацию |
-| `checkPhoneVerification()` | GET `/user/phone-verification/status` | Проверить статус |
+| confirmEmail | POST `/user/confirm-email` | Подтвердить email |
+| confirmEmailChange | GET `/user/confirm-email-change` | Подтвердить смену email |
+| startPhoneVerification | POST `/user/phone-verification/start` | Начать верификацию телефона |
+| checkPhoneVerification | GET `/user/phone-verification/status` | Проверить статус верификации |
 
-#### Удаление аккаунта
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `deleteAccount(password)` | DELETE `/user/account` | Удалить аккаунт |
-
-### cartApi
+#### Аккаунт
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| `getCart()` | GET `/cart` | Получить корзину |
-| `addItem(data)` | POST `/cart/items` | Добавить товар |
-| `updateItem(id, data)` | PATCH `/cart/items/{id}` | Изменить количество |
-| `removeItem(id)` | DELETE `/cart/items/{id}` | Удалить товар |
-| `clearCart()` | DELETE `/cart` | Очистить корзину |
-
-### deliveryApi
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `getMethods()` | GET `/delivery/methods` | Методы доставки |
-| `calculate(data)` | POST `/delivery/calculate` | Рассчитать стоимость |
-
-**Параметры calculate:**
-```typescript
-{
-  postal_code: string;  // 6 цифр
-  weight_grams: number;
-}
-```
-
-### orderApi
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `checkout(data)` | POST `/orders/checkout` | Оформить заказ |
-| `getOrders()` | GET `/orders` | Список заказов |
-| `getOrder(id)` | GET `/orders/{id}` | Детали заказа |
-
-**Параметры checkout:**
-```typescript
-{
-  delivery_method: 'pickup' | 'russian_post';
-  contact_info: {
-    firstname: string;
-    lastname: string;
-    middlename?: string;
-    phone: string;
-    email: string;
-  };
-  shipping_address?: {
-    postal_code: string;
-    address: string;
-  };
-  delivery_cost_cents: number;
-  payment_method?: string;
-}
-```
-
-### interactionsApi
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `getComments(params)` | GET `/interactions/comments` | Получить комментарии |
-| `createComment(data)` | POST `/interactions/comments` | Создать комментарий |
-| `deleteComment(id)` | DELETE `/interactions/comments/{id}` | Удалить комментарий |
-| `toggleLike(data)` | POST `/interactions/likes` | Поставить/убрать лайк |
-| `registerView(data)` | POST `/interactions/views` | Зарегистрировать просмотр |
+| deleteAccount | DELETE `/user/account` | Удалить аккаунт |
 
 ---
 
-## Управление состоянием (Zustand)
+### cartApi
 
-### AuthStore (`src/store/index.ts`)
+Работа с корзиной.
 
-```typescript
-interface AuthState {
-  user: User | null;
-  accessToken: string | null;
-  isLoading: boolean;
-  
-  setUser: (user: User | null) => void;
-  setAccessToken: (token: string | null) => void;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
-  refreshToken: () => Promise<void>;
-}
-```
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| getCart | GET `/cart` | Получить корзину |
+| addItem | POST `/cart/items` | Добавить товар |
+| updateItem | PATCH `/cart/items/{id}` | Изменить количество |
+| removeItem | DELETE `/cart/items/{id}` | Удалить товар |
+| clearCart | DELETE `/cart` | Очистить корзину |
+| applyPromoCode | POST `/cart/promo` | Применить промокод |
 
-### Использование
+**Параметры getCart**:
+*   `promo_code` (string, optional): Промокод для расчёта скидки.
 
-```typescript
-import { useAuthStore } from '@/store';
+**Гостевая корзина**: Поддерживается через cookie `guest_session_id`.
 
-// В компоненте
-const { user, isLoading, login, logout, checkAuth } = useAuthStore();
+---
 
-// Проверка авторизации при загрузке
-useEffect(() => {
-  checkAuth();
-}, []);
+### deliveryApi
 
-// Вход
-await login(email, password);
+Расчёт доставки.
 
-// Выход
-await logout();
-```
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| getMethods | GET `/delivery/methods` | Доступные методы доставки |
+| calculate | POST `/delivery/calculate` | Рассчитать стоимость |
+
+**Параметры calculate**:
+*   `postal_code` (string): Почтовый индекс (6 цифр).
+*   `weight_grams` (int): Вес посылки в граммах.
+
+---
+
+### orderApi
+
+Работа с заказами.
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| checkout | POST `/orders/checkout` | Оформить заказ |
+| getOrders | GET `/orders` | Список заказов |
+| getOrder | GET `/orders/{id}` | Детали заказа (включая payment_url) |
+
+**Параметры checkout**:
+*   `delivery_method` (string): "pickup" или "russian_post".
+*   `contact_info` (object): Данные получателя (firstname, lastname, phone, email).
+*   `shipping_address` (object, optional): Адрес и индекс для Почты России.
+*   `delivery_cost_cents` (int): Стоимость доставки в копейках.
+*   `payment_method` (string, optional): Способ оплаты.
+*   `promo_code` (string, optional): Промокод для скидки.
+
+---
+
+### interactionsApi
+
+Комментарии, лайки, просмотры.
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| getComments | GET `/interactions/comments` | Получить комментарии |
+| createComment | POST `/interactions/comments` | Создать комментарий |
+| deleteComment | DELETE `/interactions/comments/{id}` | Удалить комментарий |
+| reportComment | POST `/interactions/comments/{id}/report` | Пожаловаться на комментарий |
+| toggleLike | POST `/interactions/likes` | Поставить/убрать лайк |
+| registerView | POST `/interactions/views` | Зарегистрировать просмотр |
+
+**Параметры reportComment**:
+*   `reason` (string): Причина жалобы.
+
+---
+
+## Управление состоянием
+
+### AuthStore
+
+**Путь**: `src/store/index.ts`
+
+Zustand store для управления авторизацией.
+
+**Состояние**:
+*   `user` (User | null): Текущий пользователь.
+*   `accessToken` (string | null): Access token.
+*   `isLoading` (boolean): Флаг загрузки.
+
+**Actions**:
+*   `login(email, password)`: Вход в систему.
+*   `logout()`: Выход.
+*   `checkAuth()`: Проверка авторизации.
+*   `refreshToken()`: Обновление токена.
+*   `setUser(user)`: Установка пользователя.
+
+**Особенности**:
+- Токены хранятся в httpOnly cookies (не в localStorage).
+- При 401 ошибке автоматически пытается обновить токен.
