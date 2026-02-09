@@ -63,6 +63,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
+          // Очищаем старый токен перед логином, чтобы избежать конфликтов
+          get().setAccessToken(null);
+          
           // Логин устанавливает cookies на бэкенде
           const response = await userApi.login({ email, password });
           const { access_token } = response.data;

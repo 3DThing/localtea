@@ -134,20 +134,20 @@ export default function ForBusinessPage() {
 
       {/* Contact card */}
       <Card p="lg" radius="md" style={{ border: '1px solid rgba(212,137,79,0.06)' }}>
-        <Stack spacing="sm">
+        <Stack gap="sm">
           <Text fw={700} style={{ color: '#fbf6ee' }}>
             Контакт для корпоративных клиентов
           </Text>
           <Text c="#e8dcc8">
             Email:{' '}
-            <a href="mailto:sales@localtea.ru" style={{ color: '#d4894f' }}>
-              sales@localtea.ru
+            <a href="mailto:info@localtea.ru" style={{ color: '#d4894f' }}>
+              info@localtea.ru
             </a>
           </Text>
           <Text c="#e8dcc8">
             Телефон:{' '}
             <a href="tel:+79001234567" style={{ color: '#d4894f' }}>
-              +7 (900) 123-45-67
+              +7 (962) 951-33-71
             </a>
           </Text>
           <Group mt="sm">

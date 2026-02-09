@@ -54,8 +54,8 @@ export function CategoryList() {
         color: 'green',
       });
       fetchCategories();
-    } catch (error: any) {
-      const message = error.body?.detail || 'Не удалось удалить категорию';
+    } catch (error) {
+      const message = (error as { body?: { detail?: string } }).body?.detail || 'Не удалось удалить категорию';
       notifications.show({
         title: 'Ошибка',
         message: message,

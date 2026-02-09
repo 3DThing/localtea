@@ -67,8 +67,8 @@ export function OrderDrawer({ order, opened, onClose, onUpdate }: OrderDrawerPro
       notifications.show({ title: 'Успешно', message: 'Статус обновлён', color: 'green' });
       onUpdate(updated);
       setNewStatus(null);
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error.body?.detail || 'Не удалось обновить статус', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } }).body?.detail || 'Не удалось обновить статус', color: 'red' });
     } finally {
       setLoading(false);
     }
@@ -82,8 +82,8 @@ export function OrderDrawer({ order, opened, onClose, onUpdate }: OrderDrawerPro
       notifications.show({ title: 'Успешно', message: 'Трек-номер сохранён', color: 'green' });
       onUpdate(updated);
       setTrackingNumber('');
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error.body?.detail || 'Не удалось сохранить трек-номер', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } }).body?.detail || 'Не удалось сохранить трек-номер', color: 'red' });
     } finally {
       setLoading(false);
     }
@@ -96,8 +96,8 @@ export function OrderDrawer({ order, opened, onClose, onUpdate }: OrderDrawerPro
       const updated = await OrdersService.cancelOrderApiV1OrdersIdCancelPost(order.id);
       notifications.show({ title: 'Успешно', message: 'Заказ отменён', color: 'green' });
       onUpdate(updated);
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error.body?.detail || 'Не удалось отменить заказ', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } }).body?.detail || 'Не удалось отменить заказ', color: 'red' });
     } finally {
       setLoading(false);
     }

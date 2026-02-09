@@ -14,10 +14,11 @@ import {
   Box,
   Divider,
   Group,
+  Alert,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconMail, IconLock } from '@tabler/icons-react';
+import { IconMail, IconLock, IconX } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store';
@@ -27,16 +28,33 @@ export default function LoginPage() {
   const { login, isLoading } = useAuthStore();
   const [error, setError] = useState('');
 
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  const translateAuthError = (detail: string) => {
+    const normalized = detail?.trim();
+    if (!normalized) return 'Ошибка авторизации';
+
+    const mapping: Record<string, string> = {
+      'Invalid credentials': 'Неверная почта или пароль',
+      'Email not confirmed': 'Почта не подтверждена',
+      'Inactive user': 'Аккаунт отключён',
+    };
+
+    return mapping[normalized] ?? normalized;
+  };
+
   const form = useForm({
     initialValues: {
       email: '',
       password: '',
     },
     validate: {
-      email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Некорректный email'),
-      password: (value) => (value.length >= 6 ? null : 'Минимум 6 символов'),
+      email: (value) => (emailRegex.test(value) ? null : 'Введите корректный email'),
+      password: (value) => (value.length >= 8 ? null : 'Минимум 8 символов'),
     },
   });
+
+  const canSubmit = emailRegex.test(form.values.email) && form.values.password.length >= 8 && !isLoading;
 
   const handleSubmit = async (values: typeof form.values) => {
     setError('');
@@ -49,12 +67,14 @@ export default function LoginPage() {
       });
       router.push('/');
     } catch (err: any) {
-      const message = err.response?.data?.detail || 'Ошибка авторизации';
+      const rawDetail = err.response?.data?.detail;
+      const message = translateAuthError(typeof rawDetail === 'string' ? rawDetail : 'Ошибка авторизации');
       setError(message);
       notifications.show({
         title: 'Ошибка',
         message,
         color: 'red',
+        autoClose: 8000,
       });
     }
   };
@@ -115,9 +135,20 @@ export default function LoginPage() {
             />
 
             {error && (
-              <Text c="red" size="sm">
-                {error}
-              </Text>
+              <Alert
+                icon={<IconX size={16} />}
+                color="red"
+                variant="filled"
+                radius="md"
+                styles={{
+                  root: { border: '1px solid rgba(248,113,113,0.35)' },
+                  message: { color: '#fff' },
+                }}
+              >
+                {error === 'Почта не подтверждена'
+                  ? 'Почта не подтверждена. Проверьте письмо и подтвердите аккаунт.'
+                  : error}
+              </Alert>
             )}
 
             <Button
@@ -127,6 +158,7 @@ export default function LoginPage() {
               variant="gradient"
               gradient={{ from: '#d4894f', to: '#8b5a2b' }}
               loading={isLoading}
+              disabled={!canSubmit}
               mt="md"
               style={{ color: '#fbf6ee', borderRadius: 10, padding: '12px 16px' }}
             >

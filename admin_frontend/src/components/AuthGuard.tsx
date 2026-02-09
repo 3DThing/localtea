@@ -6,16 +6,16 @@ import { Loader, Center } from '@mantine/core';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
+  const [authorized] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem('accessToken');
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
+    if (!authorized) {
       router.push('/login');
-    } else {
-      setAuthorized(true);
     }
-  }, [router]);
+  }, [authorized, router]);
 
   if (!authorized) {
     return (

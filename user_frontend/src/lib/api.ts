@@ -13,6 +13,26 @@ export const api = axios.create({
   },
 });
 
+const SESSION_ID_STORAGE_KEY = 'localtea_session_id';
+
+const getStoredSessionId = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(SESSION_ID_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const storeSessionId = (sessionId: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SESSION_ID_STORAGE_KEY, sessionId);
+  } catch {
+    // ignore
+  }
+};
+
 // Auth token management
 let accessToken: string | null = null;
 let onTokenRefresh: ((token: string) => void) | null = null;
@@ -43,6 +63,12 @@ api.interceptors.request.use((config) => {
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
+
+    // Для анонимных пользователей поддерживаем сессию через X-Session-ID
+    const sessionId = getStoredSessionId();
+    if (sessionId && !config.headers['X-Session-ID']) {
+      config.headers['X-Session-ID'] = sessionId;
+    }
   }
   return config;
 });
@@ -66,12 +92,25 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined') {
+      const sessionId = (response.headers?.['x-session-id'] as string | undefined) ||
+                        (response.headers?.['X-Session-ID'] as string | undefined);
+      if (sessionId) {
+        storeSessionId(sessionId);
+      }
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
-    // Не пытаемся refresh для самого эндпоинта refresh или если уже пробовали
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/user/refresh')) {
+    // Не пытаемся refresh для эндпоинтов авторизации или если уже пробовали
+    const isAuthEndpoint = originalRequest.url?.includes('/user/refresh') ||
+                           originalRequest.url?.includes('/user/login') ||
+                           originalRequest.url?.includes('/user/registration');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Если refresh уже идёт, добавляем запрос в очередь
         return new Promise((resolve, reject) => {
@@ -102,16 +141,22 @@ api.interceptors.response.use(
         
         // Повторяем исходный запрос с новым токеном
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null);
         isRefreshing = false;
         
         // Если refresh не удался, очищаем токен
         setAccessToken(null);
         
-        // Перенаправляем на логин только если это не публичный запрос
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          // Можно добавить редирект на /login если нужно
+        // Если ошибка "Refresh token missing" или "Invalid refresh token" - это нормальная ситуация
+        // (пользователь не авторизован или сессия истекла), не логируем как ошибку
+        const errorDetail = refreshError?.response?.data?.detail;
+        const isExpectedAuthError = errorDetail === 'Refresh token missing' || 
+                                    errorDetail === 'Invalid refresh token' ||
+                                    errorDetail === 'Session invalid (context changed)';
+        
+        if (!isExpectedAuthError && process.env.NODE_ENV === 'development') {
+          console.warn('Token refresh failed:', errorDetail || refreshError.message);
         }
         
         return Promise.reject(refreshError);

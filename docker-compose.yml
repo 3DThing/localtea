@@ -7,6 +7,10 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app/backend
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini:ro
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
       - /var/www/localtea/uploads:/app/uploads
     env_file:
       - .env
@@ -15,6 +19,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
+      - HONEYPOT_TELEGRAM_BOT_TOKEN=${HONEYPOT_TELEGRAM_BOT_TOKEN:-}
+      - HONEYPOT_TELEGRAM_CHAT_ID=${HONEYPOT_TELEGRAM_CHAT_ID:-}
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -51,6 +57,8 @@ services:
     command: celery -A backend.core.celery_app worker --loglevel=info
     volumes:
       - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
     env_file:
       - .env
     depends_on:
@@ -74,10 +82,23 @@ services:
       context: ./user_frontend
       args:
         - NEXT_PUBLIC_API_URL=https://api.localtea.ru
+        - NEXT_PUBLIC_HONEYPOT_API=https://api.localtea.ru
     ports:
       - "127.0.0.1:3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=https://api.localtea.ru
+      - NEXT_PUBLIC_HONEYPOT_API=https://api.localtea.ru
+      - API_URL=http://backend:8000
+    restart: unless-stopped
+
+  honeypot:
+    build:
+      context: ./honeypot
+    ports:
+      - "127.0.0.1:8002:8002"
+    environment:
+      - HONEYPOT_TELEGRAM_BOT_TOKEN=${HONEYPOT_TELEGRAM_BOT_TOKEN:-}
+      - HONEYPOT_TELEGRAM_CHAT_ID=${HONEYPOT_TELEGRAM_CHAT_ID:-}
     restart: unless-stopped
 
   db:
@@ -93,6 +114,22 @@ services:
   redis:
     image: redis:7
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    ports:
+      - "127.0.0.1:8003:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@localtea.ru}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
+      - PGADMIN_LISTEN_PORT=80
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+    restart: unless-stopped
+
 volumes:
   pg_data:
+  pgadmin_data:
 

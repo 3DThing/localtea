@@ -128,7 +128,7 @@ async def confirmed_user(client: AsyncClient, db_session, registered_user, user_
     token = user.email_confirm_token
     
     # Confirm email
-    await client.get(f"/api/v1/user/confirm-email?token={token}")
+    await client.post(f"/api/v1/user/confirm-email?token={token}")
     return user
 
 @pytest_asyncio.fixture

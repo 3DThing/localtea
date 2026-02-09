@@ -71,8 +71,24 @@ export function ProductImagesForm({ product, onUpdate }: ProductImagesFormProps)
   };
 
   const handleSetMain = async (imageId: number) => {
-    // TODO: Add API endpoint for setting main image
-    notifications.show({ title: 'Информация', message: 'Функция в разработке', color: 'blue' });
+    try {
+      const token = await getValidToken();
+      const response = await fetch(`${API_URL}/catalog/images/${imageId}/set-main`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to set main image');
+      }
+
+      notifications.show({ title: 'Успешно', message: 'Главное изображение обновлено', color: 'green' });
+
+      const updated = await CatalogService.readProductApiV1CatalogProductsIdGet(product.id);
+      onUpdate(updated);
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: 'Не удалось сделать изображение главным', color: 'red' });
+    }
   };
 
   return (

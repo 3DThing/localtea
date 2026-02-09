@@ -59,10 +59,10 @@ export function LoginForm() {
         debugInfo += 'Нет ответа от сервера (возможно CORS или сервер недоступен). ';
       }
 
-      if (error.body && (error.body as any).detail) {
-          const detail = (error.body as any).detail;
+      if (error.body && (error.body as { detail?: unknown }).detail) {
+          const detail = (error.body as { detail?: unknown }).detail;
           if (Array.isArray(detail)) {
-              message = detail.map((e: any) => e.msg).join(', ');
+              message = detail.map((e: { msg: string }) => e.msg).join(', ');
           } else if (typeof detail === 'string') {
               message = detail;
           }
@@ -107,7 +107,7 @@ export function LoginForm() {
       const error = err as ApiError;
       notifications.show({
         title: 'Ошибка проверки',
-        message: (error.body as any)?.detail || 'Неверный код',
+        message: (error.body as { detail?: string })?.detail || 'Неверный код',
         color: 'red',
       });
     } finally {

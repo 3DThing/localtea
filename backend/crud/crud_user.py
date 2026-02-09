@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, Union
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from backend.crud.base import CRUDBase
 from backend.models.user import User
 from backend.schemas.user import UserCreate, UserUpdate
@@ -8,7 +8,8 @@ from backend.core.security import get_password_hash, verify_password
 
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     async def get_by_email(self, db: AsyncSession, *, email: str) -> Optional[User]:
-        result = await db.execute(select(User).where(User.email == email))
+        # Case-insensitive email search
+        result = await db.execute(select(User).where(func.lower(User.email) == email.lower()))
         return result.scalars().first()
     
     async def get_by_username(self, db: AsyncSession, *, username: str) -> Optional[User]:
@@ -17,7 +18,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
 
     async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
         db_obj = User(
-            email=obj_in.email,
+            email=obj_in.email.lower(),  # Store email in lowercase
             hashed_password=get_password_hash(obj_in.password),
             username=obj_in.username,
             firstname=obj_in.firstname,

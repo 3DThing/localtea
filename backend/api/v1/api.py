@@ -7,6 +7,7 @@ from backend.api.v1.webhooks import endpoints as webhook_endpoints
 from backend.api.v1.blog import endpoints as blog_endpoints
 from backend.api.v1.interactions import endpoints as interactions_endpoints
 from backend.api.v1.delivery import endpoints as delivery_endpoints
+from backend.api.v1.honeypot import router as honeypot_router
 
 api_router = APIRouter()
 api_router.include_router(user_endpoints.router, prefix="/user", tags=["user"])
@@ -17,6 +18,7 @@ api_router.include_router(webhook_endpoints.router, prefix="/webhooks", tags=["w
 api_router.include_router(blog_endpoints.router, prefix="/blog", tags=["blog"])
 api_router.include_router(interactions_endpoints.router, prefix="/interactions", tags=["interactions"])
 api_router.include_router(delivery_endpoints.router, prefix="/delivery", tags=["delivery"])
+api_router.include_router(honeypot_router, tags=["honeypot"])
 
 
 

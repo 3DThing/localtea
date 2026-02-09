@@ -129,7 +129,7 @@ export default function InventoryPage() {
         WarehouseService.listCatalogProducts(0, 500)
       ]);
       setCatalogCategories(cats || []);
-      setCatalogProducts(prods || []);
+      setCatalogProducts(prods?.items || []);
     } catch (error) {
       console.error('Failed to fetch catalog data:', error);
     }
@@ -138,10 +138,10 @@ export default function InventoryPage() {
   const fetchProducts = useCallback(async () => {
     setProductsLoading(true);
     try {
-      const skip = (productsPage - 1) * pageSize;
+      // Load ALL products (no pagination) for warehouse view
       const catId = productsCategoryFilter ? parseInt(productsCategoryFilter) : undefined;
       const response = await WarehouseService.listProductStock(
-        skip, pageSize, catId, undefined, productsSearch || undefined
+        0, 500, catId, undefined, productsSearch || undefined
       );
       
       // Filter by product if selected
@@ -152,13 +152,13 @@ export default function InventoryPage() {
       }
       
       setProducts(items);
-      setProductsTotal(productsProductFilter ? items.length : (response.total || 0));
+      setProductsTotal(response.total || 0);
     } catch (error) {
       notifications.show({ title: 'Ошибка', message: 'Не удалось загрузить товары', color: 'red' });
     } finally {
       setProductsLoading(false);
     }
-  }, [productsPage, productsSearch, productsCategoryFilter, productsProductFilter]);
+  }, [productsSearch, productsCategoryFilter, productsProductFilter]);
 
   const fetchMovements = useCallback(async () => {
     setMovementsLoading(true);
@@ -218,8 +218,8 @@ export default function InventoryPage() {
       closeCategoryModal();
       fetchCategories();
       fetchMaterials();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось сохранить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось сохранить', color: 'red' });
     }
   };
 
@@ -229,8 +229,8 @@ export default function InventoryPage() {
       await WarehouseService.deleteCategory(cat.id);
       notifications.show({ title: 'Успешно', message: 'Категория удалена', color: 'green' });
       fetchCategories();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось удалить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось удалить', color: 'red' });
     }
   };
 
@@ -246,8 +246,8 @@ export default function InventoryPage() {
       }
       closeMaterialModal();
       fetchMaterials();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось сохранить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось сохранить', color: 'red' });
     }
   };
 
@@ -257,8 +257,8 @@ export default function InventoryPage() {
       await WarehouseService.deleteMaterial(mat.id);
       notifications.show({ title: 'Успешно', message: 'Материал удален', color: 'green' });
       fetchMaterials();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось удалить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось удалить', color: 'red' });
     }
   };
 
@@ -271,7 +271,7 @@ export default function InventoryPage() {
       await WarehouseService.adjustMaterialStock(adjustingMaterial.id, {
         material_id: adjustingMaterial.id,
         quantity: adjustForm.quantity,
-        movement_type: adjustForm.movement_type as any,
+        movement_type: adjustForm.movement_type as "in" | "out",
         reason: adjustForm.reason
       });
       notifications.show({ 
@@ -281,8 +281,8 @@ export default function InventoryPage() {
       });
       closeAdjustModal();
       fetchMaterials();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось изменить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось изменить', color: 'red' });
     }
   };
 
@@ -295,7 +295,7 @@ export default function InventoryPage() {
       await WarehouseService.adjustProductStock(adjustingProduct.sku_id, {
         sku_id: adjustingProduct.sku_id,
         quantity: productAdjustForm.quantity,
-        movement_type: productAdjustForm.movement_type as any,
+        movement_type: productAdjustForm.movement_type as "in" | "out",
         reason: productAdjustForm.reason
       });
       notifications.show({ 
@@ -305,8 +305,8 @@ export default function InventoryPage() {
       });
       closeProductAdjustModal();
       fetchProducts();
-    } catch (error: any) {
-      notifications.show({ title: 'Ошибка', message: error?.body?.detail || 'Не удалось изменить', color: 'red' });
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: (error as { body?: { detail?: string } })?.body?.detail || 'Не удалось изменить', color: 'red' });
     }
   };
 

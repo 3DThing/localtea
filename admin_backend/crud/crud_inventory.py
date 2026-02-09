@@ -263,6 +263,11 @@ class CRUDProductStock:
     """CRUD for product SKU stock."""
     
     async def get(self, db: AsyncSession, sku_id: int) -> Optional[ProductStock]:
+        """Get ProductStock by SKU ID.
+        
+        Note: quantity/reserved values should be taken from SKU table, not ProductStock.
+        This returns ProductStock for warehouse settings only.
+        """
         result = await db.execute(
             select(ProductStock)
             .options(selectinload(ProductStock.sku))
@@ -271,9 +276,26 @@ class CRUDProductStock:
         return result.scalar_one_or_none()
     
     async def get_or_create(self, db: AsyncSession, sku_id: int) -> ProductStock:
+        """Get or create ProductStock for a SKU.
+        
+        ProductStock is only for warehouse settings (min_quantity).
+        Actual quantities are always taken from SKU table.
+        """
         stock = await self.get(db, sku_id)
         if not stock:
-            stock = ProductStock(sku_id=sku_id, quantity=0, reserved=0, min_quantity=0)
+            # Get SKU to validate it exists
+            sku = await db.get(SKU, sku_id)
+            if not sku:
+                raise ValueError(f"SKU {sku_id} not found")
+            
+            # Create ProductStock with warehouse settings
+            # Note: quantity/reserved are NOT used, SKU table is source of truth
+            stock = ProductStock(
+                sku_id=sku_id,
+                quantity=0,  # Not used, kept for backward compatibility
+                reserved=0,  # Not used, kept for backward compatibility
+                min_quantity=0
+            )
             db.add(stock)
             await db.commit()
             await db.refresh(stock)
@@ -288,12 +310,16 @@ class CRUDProductStock:
         is_low_stock: Optional[bool] = None,
         q: Optional[str] = None
     ) -> Tuple[List[dict], int]:
-        """Get product stock with product/SKU info."""
-        # Build query joining SKU -> Product -> Category
+        """Get product stock with product/SKU info.
+        
+        Takes actual quantities from SKU table (catalog), not from ProductStock.
+        ProductStock is used only for warehouse settings (min_quantity, etc).
+        """
+        # Build query from SKU (source of truth for quantities)
         query = (
-            select(ProductStock, SKU, Product)
-            .join(SKU, ProductStock.sku_id == SKU.id)
+            select(SKU, Product)
             .join(Product, SKU.product_id == Product.id)
+            .where(SKU.is_active == True)
         )
         
         if category_id:
@@ -303,24 +329,45 @@ class CRUDProductStock:
             query = query.where(
                 or_(
                     Product.title.ilike(f"%{q}%"),
+                    SKU.sku_code.ilike(f"%{q}%"),
                 )
             )
         
-        # Execute for count (before filtering by is_low_stock which is computed)
-        count_result = await db.execute(query)
-        all_results = count_result.all()
+        # Execute query
+        result = await db.execute(query)
+        all_skus = result.all()
         
-        # Filter by low stock if needed
+        # For each SKU, get or create ProductStock settings (for min_quantity)
+        items_with_stock = []
+        for sku, product in all_skus:
+            # Get ProductStock if exists (for warehouse settings)
+            stock_result = await db.execute(
+                select(ProductStock).where(ProductStock.sku_id == sku.id)
+            )
+            stock = stock_result.scalar_one_or_none()
+            
+            # If no ProductStock, create minimal object with defaults
+            if not stock:
+                stock = ProductStock(
+                    sku_id=sku.id,
+                    quantity=sku.quantity,  # Will be ignored, we use SKU.quantity
+                    reserved=sku.reserved_quantity,
+                    min_quantity=0
+                )
+            
+            items_with_stock.append((stock, sku, product))
+        
+        # Filter by low stock if needed (using SKU.quantity as source of truth)
         if is_low_stock is not None:
-            all_results = [
-                r for r in all_results
-                if is_low_stock == (r[0].quantity <= r[0].min_quantity)
+            items_with_stock = [
+                r for r in items_with_stock
+                if is_low_stock == (r[1].quantity <= r[0].min_quantity and r[0].min_quantity > 0)
             ]
         
-        total = len(all_results)
+        total = len(items_with_stock)
         
         # Paginate in memory
-        items = all_results[skip:skip + limit]
+        items = items_with_stock[skip:skip + limit]
         
         return items, total
     
@@ -331,23 +378,32 @@ class CRUDProductStock:
         admin_id: Optional[int] = None,
         order_id: Optional[int] = None
     ) -> ProductStock:
-        """Adjust product stock and log the movement."""
+        """Adjust product stock and log the movement.
+        
+        Updates SKU table (source of truth) and creates ProductStock if needed for settings.
+        """
+        # Get or create ProductStock (for settings only)
         stock = await self.get_or_create(db, adjustment.sku_id)
         
-        quantity_before = stock.quantity
+        # Get SKU (source of truth for quantities)
+        sku = await db.get(SKU, adjustment.sku_id)
+        if not sku:
+            raise ValueError(f"SKU {adjustment.sku_id} not found")
+        
+        quantity_before = sku.quantity or 0
         quantity_after = quantity_before + adjustment.quantity
         
         if quantity_after < 0:
             raise ValueError(f"Insufficient stock. Available: {quantity_before}")
         
-        stock.quantity = quantity_after
-        db.add(stock)
+        # Update SKU table (source of truth)
+        sku.quantity = quantity_after
+        db.add(sku)
         
-        # Sync with SKU table in catalog
-        sku = await db.get(SKU, adjustment.sku_id)
-        if sku:
-            sku.quantity = quantity_after
-            db.add(sku)
+        # Keep ProductStock in sync (for backward compatibility)
+        stock.quantity = quantity_after
+        stock.reserved = sku.reserved_quantity or 0
+        db.add(stock)
         
         # Map enum
         movement_type = MovementType(adjustment.movement_type.value)

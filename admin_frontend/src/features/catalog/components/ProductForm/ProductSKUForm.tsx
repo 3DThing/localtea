@@ -5,7 +5,7 @@ import { Stack, Table, Button, Group, Text, ActionIcon, Modal, TextInput, Number
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { IconPlus, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconPlus, IconPencil, IconTrash, IconGripVertical, IconArrowUp, IconArrowDown } from '@tabler/icons-react';
 import { Product, SKU, CatalogService } from '@/lib/api';
 import { notifications } from '@mantine/notifications';
 import { useDisclosure } from '@mantine/hooks';
@@ -99,6 +99,39 @@ export function ProductSKUForm({ product, onUpdate }: ProductSKUFormProps) {
     }
   };
 
+  const handleMoveUp = async (index: number) => {
+    if (index === 0) return;
+    const newSkus = [...skus];
+    [newSkus[index - 1], newSkus[index]] = [newSkus[index], newSkus[index - 1]];
+    await saveSkuOrder(newSkus);
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index === skus.length - 1) return;
+    const newSkus = [...skus];
+    [newSkus[index], newSkus[index + 1]] = [newSkus[index + 1], newSkus[index]];
+    await saveSkuOrder(newSkus);
+  };
+
+  const saveSkuOrder = async (newSkus: SKU[]) => {
+    setLoading(true);
+    try {
+      const skuIds = newSkus.map(s => s.id);
+      await CatalogService.reorderSkusApiV1CatalogProductsProductIdSkusReorderPost(product.id, skuIds);
+      setSKUs(newSkus);
+      notifications.show({ title: 'Успешно', message: 'Порядок SKU изменен', color: 'green' });
+      
+      const updated = await CatalogService.readProductApiV1CatalogProductsIdGet(product.id);
+      onUpdate(updated);
+    } catch (error) {
+      notifications.show({ title: 'Ошибка', message: 'Не удалось изменить порядок SKU', color: 'red' });
+      // Restore original order
+      setSKUs(product.skus || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const onSubmit = async (data: SKUFormData) => {
     setLoading(true);
     try {
@@ -140,6 +173,7 @@ export function ProductSKUForm({ product, onUpdate }: ProductSKUFormProps) {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th w={80}>Порядок</Table.Th>
               <Table.Th>SKU код</Table.Th>
               <Table.Th>Вес (г)</Table.Th>
               <Table.Th>Цена</Table.Th>
@@ -150,8 +184,30 @@ export function ProductSKUForm({ product, onUpdate }: ProductSKUFormProps) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {skus.map((sku) => (
+            {skus.map((sku, index) => (
               <Table.Tr key={sku.id}>
+                <Table.Td>
+                  <Group gap={2}>
+                    <ActionIcon 
+                      variant="subtle" 
+                      color="gray" 
+                      size="sm"
+                      onClick={() => handleMoveUp(index)}
+                      disabled={index === 0}
+                    >
+                      <IconArrowUp size={14} />
+                    </ActionIcon>
+                    <ActionIcon 
+                      variant="subtle" 
+                      color="gray" 
+                      size="sm"
+                      onClick={() => handleMoveDown(index)}
+                      disabled={index === skus.length - 1}
+                    >
+                      <IconArrowDown size={14} />
+                    </ActionIcon>
+                  </Group>
+                </Table.Td>
                 <Table.Td>
                   <Text fw={500}>{sku.sku_code}</Text>
                 </Table.Td>

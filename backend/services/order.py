@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Any
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, desc
 from sqlalchemy.orm import selectinload
@@ -11,9 +12,11 @@ from backend.models.cart import Cart
 from backend.models.finance import FinanceTransaction, TransactionType
 from backend.models.inventory import ProductStock
 from backend.models.promo_code import PromoCode
+from backend.models.user import User
 from backend.schemas import order as order_schemas
 from backend.services.cart import cart_service
 from backend.services.payment.yookassa import payment_service
+from backend.core.config import settings
 
 class OrderService:
     async def checkout(
@@ -26,7 +29,7 @@ class OrderService:
         # 1. Get Cart
         cart = await cart_service.get_cart(db, user_id, session_id)
         if not cart or not cart.items:
-            raise HTTPException(status_code=400, detail="Cart is empty")
+            raise HTTPException(status_code=400, detail="Корзина пуста")
 
         total_amount = 0  # Сумма без скидок
         discount_amount = 0  # Сумма скидок на товары
@@ -461,11 +464,17 @@ class OrderService:
         return result.scalars().first()
 
     async def process_payment_webhook(self, db: AsyncSession, event: Dict[str, Any]):
+        import logging
+        logger = logging.getLogger(__name__)
+        
         event_type = event.get("event")
         obj = event.get("object", {})
         payment_id = obj.get("id")
         
+        logger.info(f"Processing webhook: event_type={event_type}, payment_id={payment_id}")
+        
         if not payment_id:
+            logger.warning("Webhook has no payment_id")
             return
 
         # Find payment
@@ -473,19 +482,23 @@ class OrderService:
         payment = result.scalars().first()
         
         if not payment:
-            # Log warning
+            logger.warning(f"Payment not found: {payment_id}")
             return
 
         # Idempotency check: if status already final, ignore
         if payment.status in (PaymentStatus.SUCCEEDED, PaymentStatus.FAILED):
+            logger.info(f"Payment {payment_id} already in final state: {payment.status}")
             return
 
         # Verify with Yookassa
         real_status_data = await payment_service.check_payment(payment_id)
         real_status = real_status_data.get("status")
         
+        logger.info(f"YooKassa status for {payment_id}: {real_status}")
+        
         order = await db.get(Order, payment.order_id)
         if not order:
+            logger.warning(f"Order not found for payment {payment_id}")
             return
 
         if real_status == "succeeded" and event_type == "payment.succeeded":
@@ -538,6 +551,17 @@ class OrderService:
                     .where(ProductStock.sku_id == item.sku_id)
                     .values(reserved=ProductStock.reserved - item.quantity)
                 )
+            
+            # Отправляем email подтверждение заказа
+            logger.info(f"Sending order confirmation email for order {order.id}")
+            try:
+                was_queued = await self._send_order_confirmation_email(db, order, payment, items)
+                if was_queued:
+                    logger.info(f"Email task queued for order {order.id}")
+                else:
+                    logger.info(f"Order confirmation email skipped for order {order.id} (no recipient email)")
+            except Exception as e:
+                logger.error(f"Failed to send email for order {order.id}: {e}")
                 
         elif real_status == "canceled" and event_type == "payment.canceled":
             payment.status = PaymentStatus.FAILED
@@ -619,5 +643,104 @@ class OrderService:
             db.add(order)
             
         await db.commit()
+
+    async def _send_order_confirmation_email(
+        self, 
+        db: AsyncSession, 
+        order: Order, 
+        payment: Payment,
+        items: List[OrderItem]
+    ):
+        """Отправляет email подтверждение заказа пользователю."""
+        email_to: Optional[str] = None
+        customer_name: str = "Путник"
+
+        if order.user_id:
+            user = await db.get(User, order.user_id)
+            if user and user.email:
+                email_to = user.email
+                customer_name = user.firstname or user.username or customer_name
+        else:
+            contact_info = order.contact_info
+            if isinstance(contact_info, str):
+                try:
+                    contact_info = json.loads(contact_info)
+                except Exception:
+                    contact_info = None
+
+            if isinstance(contact_info, dict):
+                email_to = contact_info.get("email")
+                customer_name = (
+                    " ".join(
+                        [
+                            str(contact_info.get("lastname") or "").strip(),
+                            str(contact_info.get("firstname") or "").strip(),
+                            str(contact_info.get("middlename") or "").strip(),
+                        ]
+                    )
+                    .strip()
+                    or email_to
+                    or str(contact_info.get("phone") or "").strip()
+                    or customer_name
+                )
+
+        if not email_to:
+            return False
+            
+        # Форматируем цену
+        def format_price(cents: int) -> str:
+            return f"{cents // 100:,}".replace(",", " ")
+        
+        # Подготавливаем список товаров
+        email_items = []
+        for item in items:
+            email_items.append({
+                "name": item.title,
+                "variant": item.sku_info or "",
+                "quantity": item.quantity,
+                "price": format_price(item.price_cents)
+            })
+        
+        # Способ доставки
+        delivery_map = {
+            DeliveryMethod.PICKUP: "Самовывоз",
+            DeliveryMethod.RUSSIAN_POST: "Почта России"
+        }
+        delivery_method = delivery_map.get(order.delivery_method, str(order.delivery_method))
+        
+        # Отложенный импорт для избежания циклических зависимостей
+        from backend.worker import send_email
+        
+        # Отправляем через Celery
+        send_email.delay(
+            email_to=email_to,
+            subject=f"{settings.PROJECT_NAME} — Заказ #{order.id} подтверждён",
+            template_name="order_confirmation.html",
+            environment={
+                "customer_name": customer_name,
+                "order_id": order.id,
+                "payment_id": payment.external_id if payment else "",
+                "order_date": order.created_at.strftime("%d.%m.%Y"),
+                "items": email_items,
+                "subtotal": format_price(order.total_amount_cents),
+                "discount_amount": (order.discount_amount_cents or 0) // 100,
+                "promo_code": order.promo_code,
+                "delivery_method": delivery_method,
+                "delivery_cost": (order.delivery_cost_cents or 0) // 100,
+                "total": format_price(
+                    order.total_amount_cents + 
+                    (order.delivery_cost_cents or 0) - 
+                    (order.discount_amount_cents or 0)
+                ),
+                "shipping_address": order.shipping_address,
+                "order_link": (
+                    f"{settings.BASE_URL}/profile?tab=orders"
+                    if order.user_id
+                    else f"{settings.BASE_URL}/payment/success?order_id={order.id}"
+                )
+            }
+        )
+
+        return True
 
 order_service = OrderService()

@@ -88,7 +88,7 @@ export default function PromoCodesPage() {
   const handleSubmit = async (values: PromoCodeCreate) => {
     try {
       // Собираем данные, удаляя undefined значения
-      const submitData: Record<string, any> = {
+      const submitData: Record<string, unknown> = {
         code: values.code,
         discount_type: values.discount_type,
         discount_value: values.discount_value,
@@ -108,10 +108,10 @@ export default function PromoCodesPage() {
       
       // Обработка дат - DatePickerInput возвращает строку YYYY-MM-DD
       if (validFrom) {
-        submitData.valid_from = new Date(validFrom as any).toISOString();
+        submitData.valid_from = new Date(validFrom as string).toISOString();
       }
       if (validUntil) {
-        submitData.valid_until = new Date(validUntil as any).toISOString();
+        submitData.valid_until = new Date(validUntil as string).toISOString();
       }
       
       console.log('Submitting promo code:', submitData);
@@ -125,11 +125,12 @@ export default function PromoCodesPage() {
       }
       closeModal();
       fetchPromoCodes();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Promo code error:', error);
+      const err = error as { body?: { detail?: string }; message?: string };
       notifications.show({ 
         title: 'Ошибка', 
-        message: error.body?.detail || error.message || 'Не удалось сохранить промокод', 
+        message: err.body?.detail || err.message || 'Не удалось сохранить промокод', 
         color: 'red' 
       });
     }

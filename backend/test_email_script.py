@@ -7,6 +7,7 @@ sys.path.append('/app')
 
 try:
     from backend.utils.email import send_email_sync
+    from backend.core.config import settings
     
     code = str(random.randint(100000, 999999))
     email = 'rbiter@yandex.ru'
@@ -19,7 +20,7 @@ try:
         template_name='verification.html',
         environment={
             'title': 'Подтверждение регистрации',
-            'link': f'https://localtea.ru/verify?code={code}'
+            'link': f'{settings.BASE_URL}/verify?code={code}'
         }
     )
     print("Email sent successfully!")

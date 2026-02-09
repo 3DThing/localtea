@@ -42,6 +42,12 @@ backend/logs/
 pg_data/
 *.sql.backup
 
+# Backups / exports
+backups/
+*.dump
+*.tar.gz
+*.backup
+
 # Uploads (user content)
 backend/uploads/
 uploads/

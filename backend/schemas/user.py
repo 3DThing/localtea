@@ -34,7 +34,7 @@ class UserCreate(BaseModel):
     @classmethod
     def password_complexity(cls, v: str) -> str:
         if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
+            raise ValueError('Пароль должен быть не короче 8 символов')
         # Add more complexity checks if needed
         return v
 

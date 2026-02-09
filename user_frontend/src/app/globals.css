@@ -60,18 +60,19 @@ body {
 }
 
 body {
-  background: linear-gradient(180deg, #2a1f15 0%, #1a130d 50%, #120d08 100%);
+  background: linear-gradient(180deg, #221812 0%, #1a120c 40%, #130c08 100%);
   background-color: var(--background-dark);
   background-attachment: fixed;
 }
 
-/* Glowing card effect - forest theme */
+/* Glowing card effect - cozy winter theme */
 .glow-card {
   position: relative;
-  background: var(--background-card);
-  border: 1px solid var(--border);
+  background: rgba(30, 22, 15, 0.92);
+  border: 1px solid rgba(180, 120, 60, 0.1);
   backdrop-filter: blur(12px);
-  transition: all 0.3s ease;
+  transition: all 0.35s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .glow-card::before {
@@ -83,16 +84,17 @@ body {
   background: transparent;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.35s ease;
 }
 
 .glow-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 32px var(--shadow-dark), 0 0 28px rgba(212, 137, 79, 0.08);
-  border-color: var(--border-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(180, 120, 60, 0.08);
+  border-color: rgba(180, 120, 60, 0.2);
+  background: rgba(35, 25, 18, 0.95);
 }
 
-/* Hero section with forest atmosphere */
+/* Hero section with cozy winter/New Year atmosphere */
 .hero-section {
   position: relative;
   overflow: hidden;
@@ -106,9 +108,30 @@ body {
   right: 0;
   bottom: 0;
   background: 
-    radial-gradient(circle at 35% 25%, rgba(212, 137, 79, 0.06) 0%, transparent 48%),
-    radial-gradient(circle at 65% 75%, rgba(212, 137, 79, 0.04) 0%, transparent 46%);
+    radial-gradient(ellipse at 30% 20%, rgba(255, 200, 100, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(180, 100, 50, 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.1) 0%, transparent 70%);
   pointer-events: none;
+}
+
+/* Subtle warm glow effect for New Year feel */
+.hero-section::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 15% 85%, rgba(255, 180, 80, 0.06) 0%, transparent 30%),
+    radial-gradient(circle at 85% 15%, rgba(255, 220, 150, 0.04) 0%, transparent 25%);
+  pointer-events: none;
+  animation: subtle-glow 8s ease-in-out infinite alternate;
+}
+
+@keyframes subtle-glow {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
 /* Banner hover effect */
@@ -137,6 +160,21 @@ body {
 }
 
 .banner-card:hover img {
+  transform: scale(1.08);
+}
+
+/* Category banner modern style */
+.category-banner {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.category-banner:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), 0 0 40px rgba(212, 137, 79, 0.1);
+  border-color: rgba(255, 200, 150, 0.25);
+}
+
+.category-banner:hover img {
   transform: scale(1.08);
 }
 
@@ -189,17 +227,17 @@ body {
 /* Animation keyframes */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  50% { transform: translateY(-8px); }
 }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  50% { opacity: 0.75; }
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(212, 137, 79, 0.2); }
-  50% { box-shadow: 0 0 40px rgba(212, 137, 79, 0.35); }
+  0%, 100% { box-shadow: 0 0 15px rgba(180, 120, 60, 0.15); }
+  50% { box-shadow: 0 0 30px rgba(180, 120, 60, 0.25); }
 }
 
 @keyframes shimmer {

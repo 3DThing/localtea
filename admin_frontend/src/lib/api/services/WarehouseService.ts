@@ -215,7 +215,7 @@ export class WarehouseService {
         });
     }
 
-    public static deleteCategory(categoryId: number): CancelablePromise<any> {
+    public static deleteCategory(categoryId: number): CancelablePromise<unknown> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: `/api/v1/inventory/categories/${categoryId}`,
@@ -271,7 +271,7 @@ export class WarehouseService {
         });
     }
 
-    public static deleteMaterial(materialId: number): CancelablePromise<any> {
+    public static deleteMaterial(materialId: number): CancelablePromise<unknown> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: `/api/v1/inventory/materials/${materialId}`,
@@ -359,7 +359,7 @@ export class WarehouseService {
         skip: number = 0,
         limit: number = 1000,
         category_id?: number
-    ): CancelablePromise<Array<{ id: number; title: string; slug: string; category_id: number | null; skus: Array<{ id: number; sku_code: string; weight: number; price_cents: number; quantity: number }> }>> {
+    ): CancelablePromise<{ items: Array<{ id: number; title: string; slug: string; category_id: number | null; skus: Array<{ id: number; sku_code: string; weight: number; price_cents: number; quantity: number }> }>; total: number }> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/catalog/products',

@@ -120,8 +120,18 @@ class CRUDCatalog:
                 main_image = p.images[0].url
                 
             # Find min price
+            # First try visible SKUs, then all active SKUs, then all SKUs
             visible_skus = [s for s in p.skus if s.is_active and s.is_visible]
-            min_price = min((s.price_cents for s in visible_skus), default=0)
+            if visible_skus:
+                min_price = min(s.price_cents for s in visible_skus)
+            else:
+                # Fallback: if no visible SKUs, use active SKUs
+                active_skus = [s for s in p.skus if s.is_active]
+                if active_skus:
+                    min_price = min(s.price_cents for s in active_skus)
+                else:
+                    # Last resort: use any SKU
+                    min_price = min((s.price_cents for s in p.skus), default=0)
             
             items.append(catalog_schemas.ProductListItem(
                 id=p.id,

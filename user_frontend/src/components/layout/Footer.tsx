@@ -47,7 +47,7 @@ export function Footer() {
                 <IconBrandTelegram size={24} />
               </Anchor>
               <Anchor 
-                href="https://vk.com/localtea" 
+                href="https://vk.com/local_tea" 
                 target="_blank" 
                 style={{ color: colors.textMuted, transition: 'color 0.2s' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = colors.accent}
@@ -65,7 +65,6 @@ export function Footer() {
             <FooterLink href="/catalog">Каталог</FooterLink>
             <FooterLink href="/blog">Блог</FooterLink>
             <FooterLink href="/about">О нас</FooterLink>
-            
           </Stack>
 
           {/* Categories */}
@@ -98,7 +97,7 @@ export function Footer() {
                 onMouseEnter={(e) => e.currentTarget.style.color = colors.accent}
                 onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
               >
-                +7 (900) 123-45-67
+                +7 (962) 951-33-71
               </Anchor>
               
             </Group>
@@ -116,8 +115,17 @@ export function Footer() {
             <FooterLink href="/privacy" size="xs">
               Политика конфиденциальности
             </FooterLink>
+            <FooterLink href="/payment-delivery" size="xs">
+              Оплата и доставка
+            </FooterLink>
             <FooterLink href="/terms" size="xs">
               Условия использования
+            </FooterLink>
+            <FooterLink href="/offer" size="xs">
+              Публичная оферта
+            </FooterLink>
+            <FooterLink href="/bug-bounty" size="xs">
+              Для баг‑хантеров
             </FooterLink>
           </Group>
         </Group>

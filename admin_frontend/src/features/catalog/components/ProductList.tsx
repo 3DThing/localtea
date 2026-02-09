@@ -10,6 +10,7 @@ import { notifications } from '@mantine/notifications';
 export function ProductList() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -20,7 +21,13 @@ export function ProductList() {
     try {
       const skip = (page - 1) * pageSize;
       const data = await CatalogService.readProductsApiV1CatalogProductsGet(skip, pageSize);
-      setProducts(data);
+      setProducts(data.items);
+      setTotal(data.total);
+
+      const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
+      if (page > totalPages) {
+        setPage(totalPages);
+      }
     } catch (error) {
       notifications.show({
         title: 'Ошибка',
@@ -42,8 +49,11 @@ export function ProductList() {
   };
 
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
   }, [page]);
 
   const handleDelete = async (product: Product, e: React.MouseEvent) => {
@@ -146,7 +156,7 @@ export function ProductList() {
         <Group gap="sm">
           <IconPackage size={20} style={{ color: 'var(--mantine-color-blue-6)' }} />
           <Title order={4}>Товары</Title>
-          <Badge variant="light" color="blue" size="sm">{products.length}</Badge>
+          <Badge variant="light" color="blue" size="sm">{total}</Badge>
         </Group>
         <Button leftSection={<IconPlus size={14} />} onClick={handleCreate} size="xs">
           Добавить
@@ -180,9 +190,9 @@ export function ProductList() {
         </Table>
       </ScrollArea>
 
-      {products.length >= pageSize && (
+      {Math.ceil(total / pageSize) > 1 && (
         <Group justify="center" mt="sm">
-          <Pagination total={10} value={page} onChange={setPage} size="sm" />
+          <Pagination total={Math.ceil(total / pageSize)} value={page} onChange={setPage} size="sm" />
         </Group>
       )}
     </Paper>

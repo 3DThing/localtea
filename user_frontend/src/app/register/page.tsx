@@ -18,6 +18,7 @@ import {
   ScrollArea,
   Progress,
   Group,
+  Alert,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
@@ -33,6 +34,21 @@ export default function RegisterPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [successModalOpened, setSuccessModalOpened] = useState(false);
   const [password, setPassword] = useState('');
+
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  const translateRegisterError = (detail: string) => {
+    const normalized = detail?.trim();
+    if (!normalized) return 'Ошибка регистрации';
+
+    const mapping: Record<string, string> = {
+      'Password must be at least 8 characters long': 'Пароль должен быть не короче 8 символов',
+      'Email already registered': 'Эту почту уже использует другой пользователь',
+      'Username already taken': 'Это имя пользователя уже используется другим пользователем',
+    };
+
+    return mapping[normalized] ?? normalized;
+  };
 
   // Password strength calculation
   const getPasswordStrength = (pwd: string) => {
@@ -79,7 +95,6 @@ export default function RegisterPage() {
     validate: {
       username: (value) => (value.length >= 3 ? null : 'Минимум 3 символа'),
       email: (value) => {
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         if (!emailRegex.test(value)) return 'Введите корректный email адрес';
         return null;
       },
@@ -89,15 +104,30 @@ export default function RegisterPage() {
       },
       confirmPassword: (value, values) =>
         value === values.password ? null : 'Пароли не совпадают',
-      firstname: (value) => (value.length >= 2 ? null : 'Минимум 2 символа'),
-      lastname: (value) => (value.length >= 2 ? null : 'Минимум 2 символа'),
-      address: (value) => (value.length >= 10 ? null : 'Укажите полный адрес доставки'),
-      postal_code: (value) => (value.length >= 5 ? null : 'Укажите корректный индекс'),
+      firstname: (value) => {
+        if (!value) return null;
+        return value.length >= 2 ? null : 'Минимум 2 символа';
+      },
+      lastname: (value) => {
+        if (!value) return null;
+        return value.length >= 2 ? null : 'Минимум 2 символа';
+      },
+      address: (value) => {
+        if (!value) return null;
+        return value.length >= 10 ? null : 'Укажите полный адрес доставки';
+      },
+      postal_code: (value) => {
+        if (!value) return null;
+        return value.length >= 5 ? null : 'Укажите корректный индекс';
+      },
       phone_number: (value) => {
-        if (!/^\+?7/.test(value.replace(/\D/g, ''))) {
+        if (!value) return null;
+
+        const digits = value.replace(/\D/g, '');
+        if (!/^\+?7/.test(digits)) {
           return 'Номер должен начинаться с +7';
         }
-        if (value.replace(/\D/g, '').length < 11) {
+        if (digits.length < 11) {
           return 'Укажите полный номер телефона';
         }
         return null;
@@ -105,6 +135,15 @@ export default function RegisterPage() {
       agree: (value) => (value ? null : 'Необходимо принять условия'),
     },
   });
+
+  const canSubmit =
+    form.values.username.trim().length >= 3 &&
+    emailRegex.test(form.values.email) &&
+    form.values.password.length >= 8 &&
+    form.values.confirmPassword.length > 0 &&
+    form.values.password === form.values.confirmPassword &&
+    form.values.agree &&
+    !isLoading;
 
   const handleSubmit = async (values: typeof form.values) => {
     setError('');
@@ -114,12 +153,12 @@ export default function RegisterPage() {
         values.username, 
         values.password,
         {
-          firstname: values.firstname,
-          lastname: values.lastname,
-          middlename: values.middlename || undefined,
-          address: values.address,
-          postal_code: values.postal_code,
-          phone_number: values.phone_number,
+          firstname: values.firstname.trim() || undefined,
+          lastname: values.lastname.trim() || undefined,
+          middlename: values.middlename.trim() || undefined,
+          address: values.address.trim() || undefined,
+          postal_code: values.postal_code.trim() || undefined,
+          phone_number: values.phone_number.trim() || undefined,
           birthdate: values.birthdate || undefined,
         }
       );
@@ -131,12 +170,14 @@ export default function RegisterPage() {
       });
       setSuccessModalOpened(true);
     } catch (err: any) {
-      const message = err.response?.data?.detail || 'Ошибка регистрации';
+      const rawDetail = err.response?.data?.detail;
+      const message = translateRegisterError(typeof rawDetail === 'string' ? rawDetail : 'Ошибка регистрации');
       setError(message);
       notifications.show({
         title: 'Ошибка',
         message,
         color: 'red',
+        autoClose: 8000,
       });
     }
   };
@@ -304,7 +345,9 @@ export default function RegisterPage() {
                 background: 'linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00))',
               }}
             >
-              <Title order={4} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f', marginBottom: 8 }}>Данные для доставки</Title>
+              <Title order={4} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f', marginBottom: 8 }}>
+                Данные для доставки (необязательно)
+              </Title>
               <Stack gap="sm">
                 <TextInput
                   label="Фамилия"
@@ -394,7 +437,7 @@ export default function RegisterPage() {
                 <Text size="sm">
                   Я согласен с{' '}
                   <Anchor component="button" type="button" onClick={() => setModalOpened(true)} style={{ color: '#d4894f', padding: 0, border: 'none', background: 'transparent' }}>
-                    условиями использования
+                    публичной офертой
                   </Anchor>
                 </Text>
               }
@@ -402,9 +445,18 @@ export default function RegisterPage() {
             />
 
             {error && (
-              <Text c="red" size="sm">
+              <Alert
+                icon={<IconX size={16} />}
+                color="red"
+                variant="filled"
+                radius="md"
+                styles={{
+                  root: { border: '1px solid rgba(248,113,113,0.35)' },
+                  message: { color: '#fff' },
+                }}
+              >
                 {error}
-              </Text>
+              </Alert>
             )}
 
             <Button
@@ -414,6 +466,7 @@ export default function RegisterPage() {
               variant="gradient"
               gradient={{ from: '#d4894f', to: '#8b5a2b' }}
               loading={isLoading}
+              disabled={!canSubmit}
               mt="md"
               style={{ color: '#fbf6ee', borderRadius: 10 }}
             >
@@ -435,7 +488,7 @@ export default function RegisterPage() {
       <Modal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
-        title="Условия использования"
+        title="Публичная оферта"
         size="lg"
         centered
         styles={{
@@ -445,54 +498,79 @@ export default function RegisterPage() {
       >
         <ScrollArea style={{ height: 420, paddingRight: 12 }}>
           <Box>
-            <Title order={4} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f' }}>1. Введение</Title>
+            <Title order={4} style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#d4894f' }}>
+              1. Общие положения
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              Настоящие Условия использования регулируют отношения между пользователем и компанией LocalTea (далее — «Компания»). Используя сайт и его сервисы, вы подтверждаете согласие с этими условиями.
+              Настоящий документ является публичной офертой (предложением заключить договор) в смысле ст. 435–437
+              Гражданского кодекса РФ и регулирует условия продажи товаров через сайт LocalTea.
             </Text>
 
-            <Title order={5} style={{ marginTop: 8, color: '#d4894f' }}>2. Определения</Title>
+            <Title order={5} style={{ marginTop: 8, color: '#d4894f' }}>
+              2. Продавец
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              «Пользователь» — любое физическое лицо, использующее сайт. «Сайт» — веб-платформа LocalTea. «Услуги» — все функции и сервисы, предоставляемые компанией.
+              Продавец: Вальтер Владислав Сергеевич, самозанятый (НПД). ИНН: 502014830390. E‑mail: rbiter@localtea.ru.
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>3. Регистрация и аккаунт</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              3. Предмет и акцепт
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              При регистрации вы предоставляете достоверную информацию. Вы несёте ответственность за сохранность данных доступа и обязуетесь незамедлительно уведомить компанию о несанкционированном доступе.
+              Продавец обязуется передать Покупателю выбранный товар, а Покупатель обязуется оплатить и принять товар.
+              Акцептом оферты считается оформление заказа на сайте и/или его оплата.
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>4. Заказы, оплата и доставка</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              4. Цена и оплата
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              Оформление заказа происходит через корзину на сайте. Оплата может быть произведена доступными способами, указанными на сайте. Условия доставки зависят от выбранного способа и региона.
+              Цена товара указывается на сайте в рублях РФ. Оплата заказов осуществляется через платёжный сервис
+              ЮKassa (Юкасса). Доступные способы оплаты отображаются на этапе оформления заказа.
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>5. Возврат и отмена</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              5. Доставка и самовывоз
+            </Title>
+            <Text c="#e8dcc8" mb="sm">
+              Доступные способы получения заказа:
+            </Text>
             <Text c="#e8dcc8" mb="md">
-              Возврат товаров и отмена заказов осуществляется в соответствии с политикой возвратов, доступной на сайте и действующим законодательством.
+              • Почта России — доставка на указанный при оформлении заказа адрес.<br />
+              • Самовывоз — г. Москва, улица Строжевая, дом 4, строение 8.<br />
+              Стоимость и сроки доставки зависят от выбранного способа и региона и указываются при оформлении заказа.
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>6. Интеллектуальная собственность</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              6. Возврат и отказ от товара
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              Все материалы сайта (тексты, изображения, дизайн) принадлежат Компании или её правообладателям. Использование материалов без разрешения запрещено.
+              Возврат и обмен товаров, а также отказ от товара при дистанционной продаже осуществляются в соответствии с
+              Законом РФ № 2300‑1 «О защите прав потребителей» и Постановлением Правительства РФ № 2463.
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>7. Ограничение ответственности</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              7. Персональные данные
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              Компания не несёт ответственности за косвенные убытки, вызванные использованием сайта. В случае споров размер ответственности ограничен стоимостью услуг, предоставленных Компанией за последние 6 месяцев.
+              Персональные данные обрабатываются для заключения и исполнения договора, доставки и направления
+              уведомлений. Подробные условия изложены в{' '}
+              <Anchor component={Link} href="/privacy" style={{ color: '#d4894f', fontWeight: 600 }}>
+                Политике конфиденциальности
+              </Anchor>
+              .
             </Text>
 
-            <Title order={5} style={{ color: '#d4894f' }}>8. Конфиденциальность</Title>
+            <Title order={5} style={{ color: '#d4894f' }}>
+              8. Претензии и контакты
+            </Title>
             <Text c="#e8dcc8" mb="md">
-              Обработка персональных данных осуществляется в соответствии с Политикой конфиденциальности. Используя сайт, вы соглашаетесь с условиями обработки данных.
-            </Text>
-
-            <Title order={5} style={{ color: '#d4894f' }}>9. Изменения условий</Title>
-            <Text c="#e8dcc8" mb="md">
-              Компания оставляет за собой право вносить изменения в настоящие Условия. Изменения публикуются на сайте и вступают в силу с момента публикации.
-            </Text>
-
-            <Title order={5} style={{ color: '#d4894f' }}>10. Контакты</Title>
-            <Text c="#e8dcc8" mb="md">
-              Для вопросов и претензий отправляйте письма на info@localtea.ru или звоните по телефону, указанному на сайте.
+              Претензии и обращения направляются на e‑mail: rbiter@localtea.ru.
+              {' '}Полный текст оферты доступен на странице{' '}
+              <Anchor component={Link} href="/offer" style={{ color: '#d4894f', fontWeight: 600 }}>
+                «Публичная оферта»
+              </Anchor>
+              .
             </Text>
           </Box>
         </ScrollArea>

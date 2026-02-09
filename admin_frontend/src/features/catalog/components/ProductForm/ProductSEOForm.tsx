@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Stack, TextInput, Textarea, Button, Group, Text } from '@mantine/core';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,14 +27,25 @@ export function ProductSEOForm({ product, onSave, isNew }: ProductSEOFormProps) 
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, watch } = useForm<SEOFormData>({
+  const { register, handleSubmit, watch, reset } = useForm<SEOFormData>({
     resolver: zodResolver(seoSchema),
     defaultValues: {
-      seo_title: product?.seo_title || '',
-      seo_description: product?.seo_description || '',
-      seo_keywords: product?.seo_keywords || '',
+      seo_title: '',
+      seo_description: '',
+      seo_keywords: '',
     }
   });
+
+  // Обновляем форму когда product загрузится
+  useEffect(() => {
+    if (product) {
+      reset({
+        seo_title: product.seo_title || '',
+        seo_description: product.seo_description || '',
+        seo_keywords: product.seo_keywords || '',
+      });
+    }
+  }, [product, reset]);
 
   const onSubmit = async (data: SEOFormData) => {
     if (isNew) {

@@ -104,6 +104,7 @@ server {
 | Port | `5432` |
 | Database | `localtea` |
 | User | `postgres` |
+| Password | `postgres` |
 
 ### Шаги подключения
 
@@ -116,6 +117,7 @@ server {
    - **Port**: `5432`
    - **Maintenance database**: `postgres`
    - **Username**: `postgres`
+    - **Password**: `postgres` (и отметьте **Save password?** при необходимости)
 6. Нажмите **Save**
 
 ## Управление контейнером

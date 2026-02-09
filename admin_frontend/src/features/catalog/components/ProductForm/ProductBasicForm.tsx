@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TextInput, Textarea, Select, Checkbox, Button, Group, Stack } from '@mantine/core';
 import { useForm } from 'react-hook-form';
@@ -32,27 +32,43 @@ export function ProductBasicForm({ product, categories, onSave, isNew }: Product
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      title: product?.title || '',
-      slug: product?.slug || '',
-      category_id: product?.category_id?.toString() || '',
-      tea_type: product?.tea_type || '',
-      description: product?.description || '',
-      lore_description: product?.lore_description || '',
-      is_active: product?.is_active ?? true,
+      title: '',
+      slug: '',
+      category_id: '',
+      tea_type: '',
+      description: '',
+      lore_description: '',
+      is_active: true,
     }
   });
 
-  // Auto-generate slug for new products
+  // Обновляем форму когда product загрузится
+  useEffect(() => {
+    if (product) {
+      reset({
+        title: product.title || '',
+        slug: product.slug || '',
+        category_id: product.category_id?.toString() || '',
+        tea_type: product.tea_type || '',
+        description: product.description || '',
+        lore_description: product.lore_description || '',
+        is_active: product.is_active ?? true,
+      });
+    }
+  }, [product, reset]);
+
+  // Auto-generate slug for new products only
   const titleValue = watch('title');
-  if (isNew && titleValue) {
-    const slug = titleValue.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
-    if (watch('slug') !== slug) {
+  const currentSlug = watch('slug');
+  useEffect(() => {
+    if (isNew && titleValue && !currentSlug) {
+      const slug = titleValue.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
       setValue('slug', slug);
     }
-  }
+  }, [isNew, titleValue, currentSlug, setValue]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);

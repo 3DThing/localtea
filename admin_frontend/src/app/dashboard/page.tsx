@@ -129,7 +129,7 @@ export default function DashboardPage() {
             <ScrollArea h={200}>
               {stats?.logs && stats.logs.length > 0 ? (
                 <Stack gap={6}>
-                  {stats.logs.map((log: any) => (
+                  {stats.logs.map((log: { id: number; action: string; entity: string; details: string; created_at: string }) => (
                     <Paper key={log.id} withBorder p="xs" radius="sm">
                       <Group justify="space-between" mb={2}>
                         <Badge size="xs" color={

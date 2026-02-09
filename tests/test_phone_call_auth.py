@@ -11,6 +11,7 @@ import httpx
 from unittest.mock import patch, MagicMock, AsyncMock
 from typing import Dict, Any
 import json
+import os
 
 
 # Constants for SMS.ru Call Check API
@@ -18,8 +19,11 @@ SMS_RU_API_BASE_URL = "https://sms.ru"
 SMS_RU_CALLCHECK_ADD_ENDPOINT = f"{SMS_RU_API_BASE_URL}/callcheck/add"
 SMS_RU_CALLCHECK_STATUS_ENDPOINT = f"{SMS_RU_API_BASE_URL}/callcheck/status"
 
-API_ID = "D9A62F49-2FC5-213A-0404-61F414FB8088"
 TEST_PHONE = "79990847051"
+
+# NOTE: Never commit real third-party API keys into tests/repo.
+# For these unit tests the value is irrelevant because HTTP calls are mocked.
+API_ID = os.getenv("SMS_RU_API_ID", "TEST_SMS_RU_API_ID")
 
 
 class PhoneCallAuthService:
@@ -277,7 +281,7 @@ class TestPhoneCallAuthStatusCheck:
             
             assert result['status'] == "OK"
             assert result['check_status'] == "401"
-            assert "подтвережден" in result['check_status_text']
+            assert "подтвержден" in result['check_status_text']
     
     def test_check_call_status_expired(self, service):
         """

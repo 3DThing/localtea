@@ -28,6 +28,19 @@ function ConfirmEmailChangeContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
+  const translateConfirmEmailChangeError = (detail: string) => {
+    const normalized = detail?.trim();
+    if (!normalized) return 'Не удалось подтвердить смену email.';
+
+    const mapping: Record<string, string> = {
+      'Invalid token': 'Недействительная ссылка подтверждения',
+      'User not found': 'Недействительная ссылка подтверждения',
+      'Token expired': 'Срок действия ссылки истёк',
+    };
+
+    return mapping[normalized] ?? normalized;
+  };
+
   useEffect(() => {
     const confirmEmailChange = async () => {
       if (!token) {
@@ -45,7 +58,12 @@ function ConfirmEmailChangeContent() {
         }
       } catch (error: any) {
         setStatus('error');
-        const message = error.response?.data?.detail || 'Не удалось подтвердить смену email. Возможно, ссылка устарела или уже была использована.';
+        const rawDetail = error.response?.data?.detail;
+        const message = translateConfirmEmailChangeError(
+          typeof rawDetail === 'string'
+            ? rawDetail
+            : 'Не удалось подтвердить смену email. Возможно, ссылка устарела или уже была использована.'
+        );
         setErrorMessage(message);
       }
     };

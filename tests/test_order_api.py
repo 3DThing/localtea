@@ -57,19 +57,15 @@ async def test_checkout_success(client, auth_headers, catalog_data, db_session):
         }
         
         checkout_data = {
+            # Current API schema: pickup does not require shipping_address
+            "delivery_method": "pickup",
             "contact_info": {
+                "firstname": "Test",
+                "lastname": "User",
                 "email": "test@example.com",
                 "phone": "+79991234567",
-                "name": "Test User"
             },
-            "shipping_address": {
-                "city": "Moscow",
-                "street": "Tverskaya",
-                "building": "1",
-                "apartment": "10",
-                "zip_code": "101000"
-            },
-            "payment_method": "card"
+            "payment_method": "card",
         }
 
         response = await client.post(
@@ -97,16 +93,13 @@ async def test_checkout_success(client, auth_headers, catalog_data, db_session):
 @pytest.mark.asyncio
 async def test_checkout_empty_cart(client, auth_headers):
     checkout_data = {
+        "delivery_method": "pickup",
         "contact_info": {
+            "firstname": "Test",
+            "lastname": "User",
             "email": "test@example.com",
             "phone": "+79991234567",
-            "name": "Test User"
         },
-        "shipping_address": {
-            "city": "Moscow",
-            "street": "Tverskaya",
-            "building": "1"
-        }
     }
     response = await client.post(
         "/api/v1/orders/checkout",
@@ -134,8 +127,13 @@ async def test_cancel_order(client, auth_headers, catalog_data, db_session):
             "status": "pending"
         }
         checkout_data = {
-            "contact_info": {"email": "t@e.com", "phone": "123", "name": "T"},
-            "shipping_address": {"city": "M", "street": "S", "building": "1"}
+            "delivery_method": "pickup",
+            "contact_info": {
+                "firstname": "T",
+                "lastname": "E",
+                "email": "t@e.com",
+                "phone": "+79990000000",
+            },
         }
         checkout_resp = await client.post("/api/v1/orders/checkout", json=checkout_data, headers=auth_headers)
         order_id = checkout_resp.json()["id"]
@@ -161,8 +159,13 @@ async def test_get_orders(client, auth_headers, catalog_data):
     with patch("backend.services.payment.yookassa.YookassaPaymentService.create_payment") as mock_payment:
         mock_payment.return_value = {"payment_id": "pay", "status": "pending", "payment_url": "url"}
         checkout_data = {
-            "contact_info": {"email": "t@e.com", "phone": "123", "name": "T"},
-            "shipping_address": {"city": "M", "street": "S", "building": "1"}
+            "delivery_method": "pickup",
+            "contact_info": {
+                "firstname": "T",
+                "lastname": "E",
+                "email": "t@e.com",
+                "phone": "+79990000000",
+            },
         }
         await client.post("/api/v1/orders/checkout", json=checkout_data, headers=auth_headers)
 
@@ -179,8 +182,13 @@ async def test_get_order_detail(client, auth_headers, catalog_data):
     with patch("backend.services.payment.yookassa.YookassaPaymentService.create_payment") as mock_payment:
         mock_payment.return_value = {"payment_id": "pay", "status": "pending", "payment_url": "url"}
         checkout_data = {
-            "contact_info": {"email": "t@e.com", "phone": "123", "name": "T"},
-            "shipping_address": {"city": "M", "street": "S", "building": "1"}
+            "delivery_method": "pickup",
+            "contact_info": {
+                "firstname": "T",
+                "lastname": "E",
+                "email": "t@e.com",
+                "phone": "+79990000000",
+            },
         }
         checkout_resp = await client.post("/api/v1/orders/checkout", json=checkout_data, headers=auth_headers)
         order_id = checkout_resp.json()["id"]

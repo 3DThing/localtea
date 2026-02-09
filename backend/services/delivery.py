@@ -25,6 +25,13 @@ MAIL_TYPES = {
     "ems": 7030,                # EMS
 }
 
+# Человекочитаемые названия (fallback)
+MAIL_TYPE_NAMES = {
+    "standard": "Посылка стандарт",
+    "first_class": "Посылка 1 класса",
+    "ems": "EMS Почта России",
+}
+
 # Адрес отправителя (склад LocalTea)
 SENDER_POSTAL_CODE = settings.SENDER_POSTAL_CODE if hasattr(settings, 'SENDER_POSTAL_CODE') else "111020"
 
@@ -32,7 +39,48 @@ SENDER_POSTAL_CODE = settings.SENDER_POSTAL_CODE if hasattr(settings, 'SENDER_PO
 class DeliveryService:
     """Сервис расчёта доставки"""
     
-    BASE_URL = "https://tariff.pochta.ru/v2/calculate/tariff"
+    TARIFF_URL = "https://tariff.pochta.ru/v2/calculate/tariff"
+    DELIVERY_URL = "https://delivery.pochta.ru/v2/calculate/delivery"
+    
+    async def _get_delivery_days(
+        self,
+        recipient_postal_code: str,
+        mail_type_code: int,
+    ) -> tuple[int, int]:
+        """
+        Получить сроки доставки через отдельный API
+        
+        Returns:
+            (min_days, max_days) или (0, 0) при ошибке
+        """
+        params = {
+            "from": SENDER_POSTAL_CODE,
+            "to": recipient_postal_code,
+            "object": mail_type_code,
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    self.DELIVERY_URL,
+                    params=params,
+                    headers={"Accept": "application/json"},
+                    timeout=10.0
+                )
+                
+                data = response.json()
+                
+                # Проверка ошибок
+                if "errors" in data and data["errors"]:
+                    return (0, 0)
+                
+                delivery = data.get("delivery", {})
+                min_days = delivery.get("min", 0)
+                max_days = delivery.get("max", min_days)
+                
+                return (min_days, max_days)
+            except Exception:
+                return (0, 0)
     
     async def calculate_single(
         self,
@@ -51,18 +99,20 @@ class DeliveryService:
         Returns:
             DeliveryOption или None при ошибке
         """
+        mail_type_code = MAIL_TYPES.get(mail_type, 27030)
+        
         params = {
             "from": SENDER_POSTAL_CODE,
             "to": recipient_postal_code,
             "weight": weight_grams,
-            "object": MAIL_TYPES.get(mail_type, 27030),
+            "object": mail_type_code,
             "pack": 10,  # Упаковка отправителя
         }
         
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    self.BASE_URL,
+                    self.TARIFF_URL,
                     params=params,
                     headers={"Accept": "application/json"},
                     timeout=10.0
@@ -77,12 +127,22 @@ class DeliveryService:
                 if "pay" not in data:
                     return None
                 
+                # Получаем сроки доставки через отдельный API
+                min_days, max_days = await self._get_delivery_days(
+                    recipient_postal_code,
+                    mail_type_code
+                )
+                
+                # Используем цену С НДС (paynds) — это то, что платит физлицо
+                # pay — цена без НДС, paynds — цена с НДС 20%
+                total_cost_kopeks = data.get("paynds", data.get("pay", 0))
+                
                 return DeliveryOption(
                     mail_type=mail_type,
-                    mail_type_name=data.get("name", "Неизвестно"),
-                    total_cost=data.get("pay", 0) / 100,
-                    delivery_min_days=data.get("delivery", {}).get("min", 0),
-                    delivery_max_days=data.get("delivery", {}).get("max", 0)
+                    mail_type_name=data.get("name", MAIL_TYPE_NAMES.get(mail_type, "Неизвестно")),
+                    total_cost=total_cost_kopeks / 100,
+                    delivery_min_days=min_days,
+                    delivery_max_days=max_days
                 )
             except Exception:
                 return None

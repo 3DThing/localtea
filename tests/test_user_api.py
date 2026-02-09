@@ -20,7 +20,7 @@ async def test_register_user_success(client, user_data):
 async def test_register_user_duplicate_email(client, registered_user, user_data):
     response = await client.post("/api/v1/user/registration", json=user_data)
     assert response.status_code == 400
-    assert "already exists" in response.json()["detail"]
+    assert "почту" in response.json()["detail"].lower()
 
 @pytest.mark.asyncio
 async def test_register_user_duplicate_username(client, registered_user, user_data):
@@ -28,7 +28,7 @@ async def test_register_user_duplicate_username(client, registered_user, user_da
     user_data_2["email"] = "other@example.com"
     response = await client.post("/api/v1/user/registration", json=user_data_2)
     assert response.status_code == 400
-    assert "already exists" in response.json()["detail"]
+    assert "имя пользователя" in response.json()["detail"].lower()
 
 @pytest.mark.asyncio
 async def test_register_user_invalid_email(client, user_data):
@@ -91,13 +91,14 @@ async def test_confirm_email_success(client, db_session, registered_user, user_d
     user = result.scalars().first()
     token = user.email_confirm_token
     
-    response = await client.get(f"/api/v1/user/confirm-email?token={token}")
+    # Current API: GET /confirm-email redirects to frontend, confirmation is done via POST
+    response = await client.post(f"/api/v1/user/confirm-email?token={token}")
     assert response.status_code == 200
     assert response.json()["msg"] == "Email confirmed successfully"
 
 @pytest.mark.asyncio
 async def test_confirm_email_invalid_token(client):
-    response = await client.get("/api/v1/user/confirm-email?token=invalid-token")
+    response = await client.post("/api/v1/user/confirm-email?token=invalid-token")
     assert response.status_code == 404
 
 # --- Profile Tests ---

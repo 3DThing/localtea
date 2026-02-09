@@ -31,6 +31,20 @@ function ConfirmEmailContent() {
   const [manualToken, setManualToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const translateConfirmEmailError = (detail: string) => {
+    const normalized = detail?.trim();
+    if (!normalized) return 'Не удалось подтвердить email.';
+
+    const mapping: Record<string, string> = {
+      'User not found': 'Недействительная ссылка подтверждения',
+      'Invalid token': 'Недействительная ссылка подтверждения',
+      'Token expired': 'Срок действия ссылки истёк',
+      'Email already confirmed': 'Почта уже подтверждена',
+    };
+
+    return mapping[normalized] ?? normalized;
+  };
+
   useEffect(() => {
     const confirmEmail = async () => {
       if (!token) {
@@ -48,7 +62,12 @@ function ConfirmEmailContent() {
         }
       } catch (error: any) {
         setStatus('error');
-        const message = error.response?.data?.detail || 'Не удалось подтвердить email. Возможно, ссылка устарела или уже была использована.';
+        const rawDetail = error.response?.data?.detail;
+        const message = translateConfirmEmailError(
+          typeof rawDetail === 'string'
+            ? rawDetail
+            : 'Не удалось подтвердить email. Возможно, ссылка устарела или уже была использована.'
+        );
         setErrorMessage(message);
       }
     };
@@ -74,7 +93,10 @@ function ConfirmEmailContent() {
       }
     } catch (error: any) {
       setStatus('error');
-      const message = error.response?.data?.detail || 'Не удалось подтвердить email. Проверьте правильность токена.';
+      const rawDetail = error.response?.data?.detail;
+      const message = translateConfirmEmailError(
+        typeof rawDetail === 'string' ? rawDetail : 'Не удалось подтвердить email. Проверьте правильность токена.'
+      );
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);

@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
   const [topProducts, setTopProducts] = useState<ProductStats[]>([]);
   const [topCategories, setTopCategories] = useState<CategoryStats[]>([]);
   const [funnelData, setFunnelData] = useState<FunnelData | null>(null);
-  const [userStats, setUserStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<{ new_users: number; total_users: number; active_users: number } | null>(null);
   const [financeBalance, setFinanceBalance] = useState<FinanceBalance | null>(null);
 
   const fetchAnalytics = async () => {

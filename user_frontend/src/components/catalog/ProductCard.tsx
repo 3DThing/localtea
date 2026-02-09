@@ -43,6 +43,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <Badge
               variant="filled"
               color="yellow"
+              size="xl"
               style={{
                 position: 'absolute',
                 top: 12,
@@ -50,10 +51,14 @@ export function ProductCard({ product }: ProductCardProps) {
                 zIndex: 3,
                 background: 'rgba(218,160,80,0.95)',
                 color: '#2b1f15',
-                fontWeight: 700,
+                fontWeight: 800,
+                fontSize: '13px',
+                padding: '8px 14px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
               }}
             >
-              {product.tea_type}
+              {product.tea_type} чай 
             </Badge>
           )}
           <Group

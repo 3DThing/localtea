@@ -141,7 +141,7 @@ async def confirm_email_redirect(
     Redirect email confirmation to frontend page
     """
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=f"https://localtea.ru/confirm-email?token={token}")
+    return RedirectResponse(url=f"{settings.BASE_URL}/confirm-email?token={token}")
 
 @router.post("/confirm-email")
 async def confirm_email(
@@ -182,13 +182,28 @@ async def refresh_token(
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
-        
-    # Verify CSRF if needed
+
+    # Verify CSRF if enabled (refresh uses cookies => must be CSRF-protected)
     csrf_token_header = request.headers.get("X-CSRF-Token")
+    csrf_token_cookie = request.cookies.get("csrf_token")
     
     refresh_token_hash = security.get_token_hash(refresh_token)
     result = await db.execute(select(Token).where(Token.refresh_token == refresh_token_hash))
     token_obj = result.scalars().first()
+
+    if settings.CSRF_ENABLED:
+        if not csrf_token_header or not csrf_token_cookie:
+            raise HTTPException(status_code=403, detail="CSRF Token missing")
+
+        if csrf_token_header != csrf_token_cookie:
+            raise HTTPException(status_code=403, detail="CSRF Token mismatch")
+
+        if not security.verify_csrf_token(csrf_token_header):
+            raise HTTPException(status_code=403, detail="Invalid CSRF Token")
+
+        # Bind CSRF token to the stored session record (prevents token reuse across sessions)
+        if not token_obj or token_obj.csrf_token != csrf_token_header:
+            raise HTTPException(status_code=403, detail="Invalid CSRF session")
     
     # Ensure expires_at is timezone-aware before comparison
     if token_obj:

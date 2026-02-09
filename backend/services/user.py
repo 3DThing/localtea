@@ -59,29 +59,29 @@ class UserService:
     async def authenticate_user(self, db: AsyncSession, user_in: user_schemas.UserLogin) -> User:
         user = await crud_user.user.authenticate(db, email=user_in.email, password=user_in.password)
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            raise HTTPException(status_code=401, detail="Неверная почта или пароль")
         
         if not user.is_active:
-            raise HTTPException(status_code=400, detail="Inactive user")
+            raise HTTPException(status_code=400, detail="Аккаунт отключён")
             
         if not user.is_email_confirmed:
-            raise HTTPException(status_code=403, detail="Email not confirmed")
+            raise HTTPException(status_code=403, detail="Почта не подтверждена")
         return user
 
     async def confirm_email(self, db: AsyncSession, token: str):
         user = await crud_user.user.get_by_email_confirm_token(db, token=token)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Недействительная ссылка подтверждения")
             
         if user.is_email_confirmed:
-            return {"msg": "Email already confirmed"}
+            return {"msg": "Почта уже подтверждена"}
             
         expires_at = user.email_confirm_expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
 
         if expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="Token expired")
+            raise HTTPException(status_code=400, detail="Срок действия ссылки истёк")
             
         user.is_email_confirmed = True
         user.email_confirm_token = None
@@ -89,37 +89,49 @@ class UserService:
         user.email_confirmed_at = datetime.now(timezone.utc)
         
         await db.commit()
-        return {"msg": "Email confirmed successfully"}
+        return {"msg": "Почта успешно подтверждена"}
 
     async def change_password(self, db: AsyncSession, user: User, password_in: user_schemas.ChangePassword):
         if not security.verify_password(password_in.old_password, user.hashed_password):
-            raise HTTPException(status_code=400, detail="Incorrect old password")
+            raise HTTPException(status_code=400, detail="Неверный текущий пароль")
             
         if password_in.new_password == password_in.old_password:
-            raise HTTPException(status_code=400, detail="New password cannot be the same as old password")
+            raise HTTPException(status_code=400, detail="Новый пароль не должен совпадать со старым")
             
         user.hashed_password = security.get_password_hash(password_in.new_password)
         db.add(user)
         await db.commit()
-        return {"msg": "Password updated successfully"}
+        
+        # Отправляем уведомление о смене пароля
+        send_email.delay(
+            email_to=user.email,
+            subject=f"{settings.PROJECT_NAME} — Пароль изменён",
+            template_name="password_changed.html",
+            environment={
+                "username": user.username or user.firstname or "Путник",
+                "changed_at": datetime.now().strftime("%d.%m.%Y в %H:%M")
+            }
+        )
+        
+        return {"msg": "Пароль успешно изменён"}
 
     async def change_username(self, db: AsyncSession, user: User, username_in: user_schemas.ChangeUsername):
         existing_user = await crud_user.user.get_by_username(db, username=username_in.username)
         if existing_user:
-            raise HTTPException(status_code=400, detail="Username already taken")
+            raise HTTPException(status_code=400, detail="Это имя пользователя уже занято")
             
         user.username = username_in.username
         db.add(user)
         await db.commit()
-        return {"msg": "Username updated successfully"}
+        return {"msg": "Имя пользователя обновлено"}
 
     async def request_email_change(self, db: AsyncSession, user: User, email_in: user_schemas.ChangeEmail):
         if email_in.email == user.email:
-            raise HTTPException(status_code=400, detail="New email same as current")
+            raise HTTPException(status_code=400, detail="Новый email совпадает с текущим")
             
         existing_user = await crud_user.user.get_by_email(db, email=email_in.email)
         if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
+            raise HTTPException(status_code=400, detail="Эту почту уже использует другой пользователь")
             
         user.new_email_pending = email_in.email
         user.email_confirm_token = str(uuid.uuid4())
@@ -130,24 +142,25 @@ class UserService:
         
         send_email.delay(
             email_to=email_in.email,
-            subject="Подтверждение новой почты",
-            template_name="verification.html",
+            subject=f"{settings.PROJECT_NAME} — Подтверждение нового адреса",
+            template_name="email_change.html",
             environment={
-                "title": "Запрос на смену почты",
+                "username": user.username or user.firstname or "Путник",
+                "new_email": email_in.email,
                 "token": user.email_confirm_token,
-                "link": f"https://localtea.ru/confirm-email-change?token={user.email_confirm_token}"
+                "link": f"{settings.BASE_URL}/confirm-email-change?token={user.email_confirm_token}"
             }
         )
-        return {"msg": "Confirmation email sent"}
+        return {"msg": "Письмо для подтверждения отправлено"}
 
     async def confirm_email_change(self, db: AsyncSession, token: str):
         user = await crud_user.user.get_by_email_confirm_token(db, token=token)
         
         if not user or not user.new_email_pending:
-            raise HTTPException(status_code=404, detail="Invalid token")
+            raise HTTPException(status_code=404, detail="Недействительная ссылка подтверждения")
             
         if user.email_confirm_expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="Token expired")
+            raise HTTPException(status_code=400, detail="Срок действия ссылки истёк")
             
         user.email = user.new_email_pending
         user.new_email_pending = None
@@ -157,7 +170,7 @@ class UserService:
         
         db.add(user)
         await db.commit()
-        return {"msg": "Email changed successfully"}
+        return {"msg": "Email успешно изменён"}
 
     async def update_lastname(self, db: AsyncSession, user: User, lastname_in: user_schemas.ChangeLastname):
         user.lastname = lastname_in.lastname
@@ -198,13 +211,13 @@ class UserService:
     async def update_phone_number(self, db: AsyncSession, user: User, phone_number_in: user_schemas.ChangePhoneNumber):
         # Проверяем, изменился ли номер
         if user.phone_number == phone_number_in.phone_number:
-            raise HTTPException(status_code=400, detail="New phone number is the same as current")
+            raise HTTPException(status_code=400, detail="Новый номер совпадает с текущим")
         
         # Проверяем уникальность номера
         if phone_number_in.phone_number:
             existing_user = await crud_user.user.get_by_phone_number(db, phone_number=phone_number_in.phone_number)
             if existing_user and existing_user.id != user.id:
-                raise HTTPException(status_code=400, detail="This phone number is already registered")
+                raise HTTPException(status_code=400, detail="Этот номер телефона уже зарегистрирован")
         
         user.phone_number = phone_number_in.phone_number
         
@@ -216,7 +229,7 @@ class UserService:
         db.add(user)
         await db.commit()
         await db.refresh(user)
-        return {"msg": "Phone number updated. Please verify your new phone number."}
+        return {"msg": "Номер телефона обновлён. Подтвердите новый номер телефона."}
 
     async def upload_avatar(self, db: AsyncSession, user: User, file: UploadFile):
         from PIL import Image
@@ -263,7 +276,7 @@ class UserService:
             img.save(filepath, "WEBP", quality=85)
             
             # Формируем URL для доступа
-            base_url = os.environ.get("UPLOADS_BASE_URL", "http://5.129.219.127:8000")
+            base_url = settings.UPLOADS_BASE_URL or settings.API_BASE_URL
             avatar_url = f"{base_url}/uploads/user/{user.id}/{filename}"
             
         except Exception as e:

@@ -112,3 +112,9 @@ class Product(ProductCreate):
     images: List[ProductImage] = []
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductListResponse(BaseModel):
+    items: List[Product]
+    total: int
+

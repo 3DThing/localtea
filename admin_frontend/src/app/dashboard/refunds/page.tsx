@@ -55,10 +55,10 @@ export default function RefundsPage() {
       closeCreateModal();
       form.reset();
       fetchRefunds();
-    } catch (error: any) {
+    } catch (error) {
       notifications.show({ 
         title: 'Ошибка', 
-        message: error.body?.detail || 'Не удалось создать возврат', 
+        message: (error as { body?: { detail?: string } }).body?.detail || 'Не удалось создать возврат', 
         color: 'red' 
       });
     }

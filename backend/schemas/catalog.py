@@ -31,6 +31,7 @@ class SKUBase(BaseModel):
     is_active: bool
     is_visible: bool
     is_limited: bool
+    sort_order: Optional[int] = 0
 
 class SKU(SKUBase):
     id: int

@@ -1,251 +1,133 @@
-# База Данных в LocalTea
+# База данных в LocalTea (User Backend)
 
-В этом документе описана структура и конфигурация базы данных проекта.
+Документ актуализирован по фактической схеме PostgreSQL (таблицы/колонки создаются Alembic-миграциями в `alembic/versions`).
 
 ## Общая информация
 
-*   **СУБД**: PostgreSQL.
-*   **Драйвер**: `asyncpg` (асинхронный драйвер для высокой производительности).
-*   **ORM**: SQLAlchemy (в асинхронном режиме).
-*   **Миграции**: Используется **Alembic**. Автоматическое создание таблиц через `Base.metadata.create_all` отключено.
+- **СУБД**: PostgreSQL 15+
+- **ORM**: SQLAlchemy 2.x (async)
+- **Драйвер**: `asyncpg`
+- **Миграции**: Alembic (автосоздание таблиц через `Base.metadata.create_all` отключено)
 
 ## Подключение
 
-Строка подключения задается в переменных окружения:
-*   `DATABASE_URL`: Используется приложением (`app_user`).
-*   `MIGRATION_DATABASE_URL`: Используется Alembic для миграций (`migration_user`). Если не задана, используется `DATABASE_URL`.
+Используются переменные окружения:
 
-Пример формата: `postgresql+asyncpg://user:password@host:port/dbname`.
+- `DATABASE_URL` — основное подключение приложения
+- `MIGRATION_DATABASE_URL` — подключение для миграций (если не задано, используется `DATABASE_URL`)
 
-## Пользователи и Права
+Формат: `postgresql+asyncpg://user:password@host:port/dbname`
 
-В проекте используется разделение прав доступа к БД (скрипт инициализации `docker/postgres/init.sql`):
+## Пользователи БД и права
 
-1.  **`migration_user`**:
-    *   Владелец схемы.
-    *   Права: `ALL PRIVILEGES` (CREATE, DROP, ALTER tables).
-    *   Используется только при деплое/миграциях.
+Используется принцип наименьших привилегий (см. `docker/postgres/init.sql`):
 
-2.  **`app_user`**:
-    *   Пользователь приложения.
-    *   Права: `SELECT`, `INSERT`, `UPDATE`, `DELETE`.
-    *   **Запрещено**: `DROP`, `TRUNCATE`, `ALTER`.
+- `migration_user` — DDL (создание/изменение схемы), используется Alembic
+- `app_user` — DML (SELECT/INSERT/UPDATE/DELETE), используется приложением
 
 ## Управление миграциями (Alembic)
 
-Для изменения схемы базы данных используются миграции.
+Основные команды (в Docker окружении):
 
-### Основные команды
+```bash
+docker-compose exec backend alembic revision --autogenerate -m "описание"
+docker-compose exec backend alembic upgrade head
+docker-compose exec backend alembic downgrade -1
+```
 
-1.  **Создание новой миграции** (после изменения моделей в коде):
-    ```bash
-    docker-compose exec backend alembic revision --autogenerate -m "Описание изменений"
-    ```
-    Это создаст новый файл миграции в папке `alembic/versions/`.
+## Схема данных (актуальная, укрупнённо)
 
-2.  **Применение миграций** (обновление БД до актуального состояния):
-    ```bash
-    docker-compose exec backend alembic upgrade head
-    ```
+Ниже приведён укрупнённый обзор таблиц, сгруппированный по модулям. Полный перечень полей следует смотреть в моделях `backend/models/*.py` и миграциях.
 
-3.  **Откат миграции** (на один шаг назад):
-    ```bash
-    docker-compose exec backend alembic downgrade -1
-    ```
+### 1) Пользователи и сессии
 
-## Схема Данных (Models)
+#### Таблица `user`
 
-На данный момент в проекте определены две основные сущности: `User` и `Token`.
+Ключевые поля:
 
-### 1. Таблица `user` (Пользователи)
-Хранит основную информацию о пользователях системы.
+- `email` — уникальный логин
+- `username` — уникальный логин
+- `hashed_password` — хеш (Argon2)
+- `is_email_confirmed`, `email_confirm_token`, `email_confirm_expires_at`, `email_confirmed_at`, `new_email_pending`
+- Профиль: `firstname`, `lastname`, `middlename`, `birthdate`, `address`, `postal_code`, `avatar_url`
+- Телефон: `phone_number`, `is_phone_confirmed`, `phone_verification_check_id`, `phone_verification_expires_at`
+- Служебные: `created_at`, `updated_at`
 
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | Уникальный идентификатор. |
-| `email` | String (Unique) | Электронная почта (логин). |
-| `username` | String (Unique) | Имя пользователя (альтернативный логин). |
+Ограничения и индексы:
 
-### 2. Таблица `token` (Токены)
-Хранит токены для сброса пароля и подтверждения email.
+- `email` — unique
+- `username` — unique
+- `phone_number` — **unique (если заполнен)**: в БД поддерживается уникальным индексом `uq_user_phone_number`
 
-### 3. Модуль Каталога (`catalog`)
+#### Таблица `token`
+
+Сессии и refresh-токены:
+
+- `refresh_token` — хранится **в виде SHA256-хеша**
+- `csrf_token`
+- `ip`, `user_agent`, `fingerprint`
+- `expires_at`, `revoked`, `rotated_at`
+
+### 2) Каталог
 
 #### Таблица `category`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID категории. |
-| `name` | String | Название. |
-| `slug` | String (Unique) | URL-friendly название. |
-| `image` | String | URL изображения категории. |
-| `parent_id` | Integer (FK) | Родительская категория (для дерева). |
-| `is_active` | Boolean | Активность. |
+
+- `name`, `slug` (unique), `parent_id` (дерево)
+- `description`, `image`, `is_active`
+- SEO: `seo_title`, `seo_description`
 
 #### Таблица `product`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID товара. |
-| `title` | String | Название. |
-| `slug` | String (Unique) | URL-friendly название. |
-| `category_id` | Integer (FK) | Категория. |
-| `brewing_guide` | JSONB | Инструкция по завариванию. |
-| `views_count` | Integer | Количество просмотров. |
-| `likes_count` | Integer | Количество лайков. |
-| `comments_count` | Integer | Количество комментариев. |
+
+- `title`, `slug` (unique), `category_id`
+- `tea_type`, `description`, `lore_description`, `brewing_guide` (JSONB)
+- SEO: `seo_title`, `seo_description`, `seo_keywords`
+- Счётчики: `views_count`, `likes_count`, `comments_count`
+- `is_active`, `created_at`
 
 #### Таблица `sku`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID вариации. |
-| `product_id` | Integer (FK) | Товар. |
-| `sku_code` | String (Unique) | Артикул. |
-| `price_cents` | Integer | Цена в копейках. |
-| `quantity` | Integer | Физический остаток на складе. |
-| `reserved_quantity` | Integer | Зарезервированный остаток (в неоплаченных заказах). |
 
-### 4. Модуль Корзины (`cart`)
+- `sku_code` (unique), `weight` (граммы)
+- `price_cents`, `discount_cents`
+- Остатки: `quantity`, `reserved_quantity`
+- Флаги: `is_active`, `is_visible`, `is_limited`
 
-#### Таблица `cart`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID корзины. |
-| `user_id` | Integer (FK) | Пользователь (опционально). |
-| `session_id` | String | ID сессии (для анонимов). |
+#### Таблица `productimage`
 
-#### Таблица `cartitem`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID позиции. |
-| `cart_id` | Integer (FK) | Корзина. |
-| `sku_id` | Integer (FK) | Товар. |
-| `quantity` | Integer | Количество. |
+- `product_id`, `url`, `is_main`, `sort_order`
 
-### 5. Модуль Заказов (`order`)
+### 3) Корзина
+
+#### Таблицы `cart`, `cartitem`
+
+- Корзина поддерживает владельца: `user_id` (авториз.) или `session_id` (гость)
+- `cartitem`: `sku_id`, `quantity`, `fixed_price_cents`, `created_at`, `updated_at`
+
+### 4) Заказы и платежи
 
 #### Таблица `order`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID заказа. |
-| `status` | Enum | Статус (`awaiting_payment`, `paid`, `cancelled`, `shipped`). |
-| `total_amount_cents` | Integer | Сумма заказа. |
-| `shipping_address` | JSONB | Адрес доставки. |
-| `contact_info` | JSONB | Контакты. |
-| `expires_at` | DateTime | Время истечения брони (30 мин). |
 
-#### Таблица `orderitem`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID позиции. |
-| `order_id` | Integer (FK) | Заказ. |
-| `sku_id` | Integer (FK) | Товар. |
-| `price_cents` | Integer | Цена на момент покупки. |
-| `quantity` | Integer | Количество. |
+- Статусы: `awaiting_payment`, `paid`, `processing`, `ready_for_pickup`, `shipped`, `delivered`, `cancelled`
+- Суммы: `total_amount_cents`, `delivery_cost_cents`, `discount_amount_cents`
+- Промо: `promo_code`
+- Доставка: `delivery_method` (pickup / russian_post), `shipping_address` (JSONB), `tracking_number`
+- Контакты: `contact_info` (JSONB)
+- `created_at`, `expires_at`
 
-#### Таблица `payment`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID платежа. |
-| `order_id` | Integer (FK) | Заказ. |
-| `external_id` | String | ID в платежной системе (ЮKassa). |
-| `status` | Enum | Статус платежа (`pending`, `succeeded`, `failed`). |
-| `provider_response` | JSONB | Полный ответ от провайдера. |
+#### Таблицы `orderitem`, `payment`
 
-| `hashed_password` | String | Хеш пароля (Argon2). |
-| `is_active` | Boolean | Активен ли пользователь (по умолчанию `True`). |
-| `is_superuser` | Boolean | Права администратора. |
-| `is_email_confirmed` | Boolean | Подтвержден ли email. |
-| `email_confirm_token` | String | Токен для подтверждения почты. |
-| `firstname`, `lastname` | String | Имя, Фамилия. |
-| `middlename` | String | Отчество. |
-| `birthdate` | Date | Дата рождения. |
-| `address` | String | Адрес доставки. |
-| `postal_code` | String | Почтовый индекс. |
-| `phone_number` | String | Номер телефона. |
-| `avatar_url` | String | Ссылка на аватар. |
-| `created_at` | DateTime | Дата регистрации (UTC). |
-| `updated_at` | DateTime | Дата последнего обновления профиля (UTC). |
+- `orderitem`: `sku_id`, `title`, `sku_info`, `price_cents`, `quantity`
+- `payment`: `order_id`, `external_id`, `amount_cents`, `status` (pending/succeeded/failed), `provider_response` (JSONB)
 
-### 2. Таблица `token` (Сессии)
-Хранит информацию о выданных Refresh токенах для управления сессиями.
+### 5) Блог и взаимодействия
 
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | Уникальный идентификатор записи. |
-| `user_id` | Integer (FK) | Ссылка на пользователя (`user.id`). |
-| `refresh_token` | String (Unique) | **SHA256 хеш** токена обновления. |
-| `csrf_token` | String | Связанный CSRF токен. |
-| `ip` | String | IP-адрес, с которого был выполнен вход. |
-| `user_agent` | String | User-Agent браузера/клиента. |
-| `fingerprint` | String | Дополнительный отпечаток (зарезервировано). |
-| `created_at` | DateTime | Дата создания сессии (UTC). |
-| `expires_at` | DateTime | Дата истечения срока действия. |
-| `revoked` | Boolean | Отозван ли токен (Logout). |
-| `rotated_at` | DateTime | Дата ротации (если использовалась). |
+#### Таблицы `article`, `comment`, `like`, `view`, `report`
 
-## Связи (Relationships)
+- `article`: публикации, счётчики, `author_id`
+- `comment`: комментарии к статьям/товарам
+- `like`: лайки (поддержка `user_id` или `fingerprint`), уникальность обеспечивается ограничениями в БД
+- `view`: просмотры
+- `report`: жалобы на комментарии
 
-*   **User -> Token**: Один ко многим (`One-to-Many`). Один пользователь может иметь множество активных сессий (токенов) на разных устройствах.
-*   При удалении пользователя (`cascade="all, delete-orphan"`) все его токены автоматически удаляются.
+## Примечание про актуальность
 
-### 3. Модуль Блога (`blog`)
-
-#### Таблица `article`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID статьи. |
-| `title` | String | Заголовок. |
-| `slug` | String (Unique) | URL-friendly название. |
-| `content` | Text | Содержимое статьи (HTML/Markdown). |
-| `preview_image` | String | Ссылка на изображение превью. |
-| `is_published` | Boolean | Статус публикации. |
-| `created_at` | Timestamp | Дата создания. |
-| `updated_at` | Timestamp | Дата последнего обновления. |
-| `author_id` | Integer (FK) | Автор статьи (User). |
-| `views_count` | Integer | Количество просмотров. |
-| `likes_count` | Integer | Количество лайков. |
-| `comments_count` | Integer | Количество комментариев. |
-
-### 4. Модуль Взаимодействий (`interactions`)
-
-#### Таблица `comment`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID комментария. |
-| `user_id` | Integer (FK) | Автор комментария. |
-| `content` | Text | Текст комментария. |
-| `created_at` | Timestamp | Дата создания. |
-| `updated_at` | Timestamp | Дата обновления. |
-| `article_id` | Integer (FK) | Ссылка на статью (nullable). |
-| `product_id` | Integer (FK) | Ссылка на товар (nullable). |
-| `likes_count` | Integer | Количество лайков на комментарии. |
-
-#### Таблица `like`
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `user_id` | Integer (FK) | Пользователь (nullable, если аноним). |
-| `fingerprint` | String | Хеш (IP + User-Agent) для анонимов. |
-| `article_id` | Integer (FK) | Ссылка на статью (nullable). |
-| `product_id` | Integer (FK) | Ссылка на товар (nullable). |
-| `comment_id` | Integer (FK) | Ссылка на комментарий (nullable). |
-| `created_at` | Timestamp | Дата лайка. |
-| **Constraint** | Unique | `(user_id, target_id)` OR `(fingerprint, target_id)` - один лайк на объект. |
-
-#### Таблица `view` (Опционально/Логи)
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID записи. |
-| `fingerprint` | String | Хеш (IP + User-Agent) для анонимов. |
-| `user_id` | Integer (FK) | Пользователь (если авторизован). |
-| `article_id` | Integer (FK) | Статья. |
-| `product_id` | Integer (FK) | Товар. |
-| `created_at` | Timestamp | Время просмотра. |
-
-#### Таблица `report` (Жалобы)
-| Поле | Тип | Описание |
-| :--- | :--- | :--- |
-| `id` | Integer (PK) | ID жалобы. |
-| `user_id` | Integer (FK) | Кто пожаловался. |
-| `comment_id` | Integer (FK) | На какой комментарий. |
-| `reason` | String | Причина. |
-| `created_at` | Timestamp | Дата создания. |
-| `status` | String | Статус (new, resolved, rejected). |
+Если содержимое этого документа расходится со схемой в БД, источником истины считается набор миграций в `alembic/versions` и фактическая схема PostgreSQL.

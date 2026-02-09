@@ -50,7 +50,10 @@ class Settings(BaseSettings):
     API_BASE_URL: str = "https://api.localtea.ru"
     UPLOADS_BASE_URL: Optional[str] = None
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Prefer a single unified .env in the repo root.
+    # When running from repo root (/app), ".env" is found.
+    # When running from a subfolder (e.g. /app/backend), fall back to "../.env".
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
 
 settings = Settings()

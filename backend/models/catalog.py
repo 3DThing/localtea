@@ -43,8 +43,13 @@ class Product(Base):
     seo_keywords = Column(String, nullable=True)
 
     category = relationship("Category", back_populates="products")
-    skus = relationship("SKU", back_populates="product", cascade="all, delete-orphan")
-    images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
+    skus = relationship("SKU", back_populates="product", cascade="all, delete-orphan", order_by="SKU.sort_order")
+    images = relationship(
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.sort_order, ProductImage.id",
+    )
 
     # Full Text Search Indexes (GIN) would be added via Alembic or specialized Index constructs if needed explicitly here,
     # but usually handled by migrations or specific dialect options. 
@@ -62,6 +67,7 @@ class SKU(Base):
     is_active = Column(Boolean, default=True)
     is_visible = Column(Boolean, default=True)
     is_limited = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
 
     product = relationship("Product", back_populates="skus")
 

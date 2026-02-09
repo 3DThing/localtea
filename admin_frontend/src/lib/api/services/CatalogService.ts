@@ -113,13 +113,13 @@ export class CatalogService {
      * Read Products
      * @param skip
      * @param limit
-     * @returns Product Successful Response
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static readProductsApiV1CatalogProductsGet(
         skip?: number,
         limit: number = 100,
-    ): CancelablePromise<Array<Product>> {
+    ): CancelablePromise<{ items: Array<Product>; total: number }> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/catalog/products',
@@ -322,6 +322,30 @@ export class CatalogService {
             path: {
                 'id': id,
             },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Reorder Skus
+     * @param productId
+     * @param requestBody - Array of SKU IDs in desired order
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static reorderSkusApiV1CatalogProductsProductIdSkusReorderPost(
+        productId: number,
+        requestBody: number[],
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/catalog/products/{product_id}/skus/reorder',
+            path: {
+                'product_id': productId,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: `Validation Error`,
             },

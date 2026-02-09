@@ -404,8 +404,13 @@ async def list_product_stock(
         # Get category
         cat = await db.get(Category, product.category_id) if product.category_id else None
         
+        # Use SKU quantities (catalog) as source of truth
+        actual_quantity = sku.quantity or 0
+        actual_reserved = sku.reserved_quantity or 0
+        actual_available = max(0, actual_quantity - actual_reserved)
+        
         response_items.append(schemas.ProductStockResponse(
-            id=stock.id,
+            id=stock.id if stock.id else 0,
             sku_id=sku.id,
             sku_weight_grams=sku.weight,
             sku_price_cents=sku.price_cents,
@@ -413,12 +418,12 @@ async def list_product_stock(
             product_name=product.title,
             category_id=product.category_id,
             category_name=cat.name if cat else None,
-            quantity=stock.quantity,
-            reserved=stock.reserved,
-            available=stock.quantity - stock.reserved,
-            min_quantity=stock.min_quantity,
-            is_low_stock=stock.quantity <= stock.min_quantity,
-            updated_at=stock.updated_at
+            quantity=actual_quantity,
+            reserved=actual_reserved,
+            available=actual_available,
+            min_quantity=stock.min_quantity if stock.min_quantity else 0,
+            is_low_stock=actual_quantity <= stock.min_quantity and stock.min_quantity > 0,
+            updated_at=stock.updated_at if stock.updated_at else None
         ))
     
     return schemas.ProductStockListResponse(items=response_items, total=total)
@@ -560,28 +565,37 @@ async def get_inventory_analytics(
         select(func.count()).where(InventoryMaterial.quantity <= 0)
     ) or 0
     
-    # Product stock stats
-    total_skus = await db.scalar(select(func.count(ProductStock.id))) or 0
+    # Product stock stats - using SKU as source of truth
+    total_skus = await db.scalar(
+        select(func.count(SKU.id)).where(SKU.is_active == True)
+    ) or 0
     
-    # Product stock with prices - calculate total value
-    stock_value_result = await db.execute(
-        select(func.sum(ProductStock.quantity * SKU.price_cents))
-        .join(SKU, ProductStock.sku_id == SKU.id)
-    )
-    products_total_value = stock_value_result.scalar() or 0
+    # Product stock with prices - calculate total value from SKU
+    products_total_value = await db.scalar(
+        select(func.sum(SKU.quantity * SKU.price_cents)).where(SKU.is_active == True)
+    ) or 0
     
-    # Total stock
-    total_products_stock = await db.scalar(select(func.sum(ProductStock.quantity))) or 0
-    total_reserved = await db.scalar(select(func.sum(ProductStock.reserved))) or 0
+    # Total stock from SKU (source of truth)
+    total_products_stock = await db.scalar(
+        select(func.sum(SKU.quantity)).where(SKU.is_active == True)
+    ) or 0
+    total_reserved = await db.scalar(
+        select(func.sum(SKU.reserved_quantity)).where(SKU.is_active == True)
+    ) or 0
     
+    # Low stock: join with ProductStock to get min_quantity settings
     products_low_stock = await db.scalar(
-        select(func.count()).where(
-            ProductStock.quantity <= ProductStock.min_quantity,
+        select(func.count())
+        .select_from(SKU)
+        .join(ProductStock, ProductStock.sku_id == SKU.id)
+        .where(
+            SKU.is_active == True,
+            SKU.quantity <= ProductStock.min_quantity,
             ProductStock.min_quantity > 0
         )
     ) or 0
     products_out_of_stock = await db.scalar(
-        select(func.count()).where(ProductStock.quantity <= 0)
+        select(func.count()).where(SKU.is_active == True, SKU.quantity <= 0)
     ) or 0
     
     # Catalog stats
@@ -603,24 +617,24 @@ async def get_inventory_analytics(
         for m in top_materials_result.scalars().all()
     ]
     
-    # Top products by value (stock * price)
+    # Top products by value (stock * price) - using SKU as source
     top_products_result = await db.execute(
-        select(ProductStock, SKU, Product)
-        .join(SKU, ProductStock.sku_id == SKU.id)
+        select(SKU, Product)
         .join(Product, SKU.product_id == Product.id)
-        .order_by((ProductStock.quantity * SKU.price_cents).desc())
+        .where(SKU.is_active == True)
+        .order_by((SKU.quantity * SKU.price_cents).desc())
         .limit(10)
     )
     top_products = []
-    for ps, sku, product in top_products_result.all():
+    for sku, product in top_products_result.all():
         top_products.append({
-            "id": ps.id,
+            "id": sku.id,
             "sku_id": sku.id,
             "product_name": product.title,
             "weight_grams": sku.weight,
-            "quantity": ps.quantity,
+            "quantity": sku.quantity,
             "price_cents": sku.price_cents,
-            "value_cents": int(ps.quantity * sku.price_cents)
+            "value_cents": int(sku.quantity * sku.price_cents)
         })
     
     # Recent movements
@@ -699,42 +713,43 @@ async def get_inventory_analytics(
             .where(Product.category_id == cat.id)
         ) or 0
         
-        # Stock stats for category
+        # Stock stats for category - using SKU as source of truth
         cat_stock_stats = await db.execute(
             select(
-                func.coalesce(func.sum(ProductStock.quantity), 0),
-                func.coalesce(func.sum(ProductStock.reserved), 0),
-                func.coalesce(func.sum(ProductStock.quantity * SKU.price_cents), 0)
+                func.coalesce(func.sum(SKU.quantity), 0),
+                func.coalesce(func.sum(SKU.reserved_quantity), 0),
+                func.coalesce(func.sum(SKU.quantity * SKU.price_cents), 0)
             )
-            .join(SKU, ProductStock.sku_id == SKU.id)
             .join(Product, SKU.product_id == Product.id)
-            .where(Product.category_id == cat.id)
+            .where(Product.category_id == cat.id, SKU.is_active == True)
         )
         cat_stock_row = cat_stock_stats.first()
         cat_total_stock = int(cat_stock_row[0]) if cat_stock_row else 0
         cat_reserved = int(cat_stock_row[1]) if cat_stock_row else 0
         cat_value_cents = int(cat_stock_row[2]) if cat_stock_row else 0
         
-        # Low stock count
+        # Low stock count - join with ProductStock for min_quantity settings
         cat_low_stock = await db.scalar(
-            select(func.count(ProductStock.id))
-            .join(SKU, ProductStock.sku_id == SKU.id)
+            select(func.count())
+            .select_from(SKU)
             .join(Product, SKU.product_id == Product.id)
+            .join(ProductStock, ProductStock.sku_id == SKU.id)
             .where(
                 Product.category_id == cat.id,
-                ProductStock.quantity <= ProductStock.min_quantity,
+                SKU.is_active == True,
+                SKU.quantity <= ProductStock.min_quantity,
                 ProductStock.min_quantity > 0
             )
         ) or 0
         
         # Out of stock count
         cat_out_of_stock = await db.scalar(
-            select(func.count(ProductStock.id))
-            .join(SKU, ProductStock.sku_id == SKU.id)
+            select(func.count(SKU.id))
             .join(Product, SKU.product_id == Product.id)
             .where(
                 Product.category_id == cat.id,
-                ProductStock.quantity <= 0
+                SKU.is_active == True,
+                SKU.quantity <= 0
             )
         ) or 0
         
