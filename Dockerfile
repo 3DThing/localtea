@@ -24,6 +24,10 @@ FROM base as prod
 # Копируем код приложения
 COPY . .
 
+# Создаём каталоги с правильными правами
+RUN mkdir -p /app/backend/logs /app/uploads && \
+    chown -R appuser:appuser /app/backend/logs /app/uploads
+
 # Удаляем shell для безопасности (если кто-то проломит RCE, он не сможет запустить команды)
 RUN rm -rf /bin/sh /bin/bash /usr/bin/sh /usr/bin/bash
 
