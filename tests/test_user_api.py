@@ -94,7 +94,7 @@ async def test_confirm_email_success(client, db_session, registered_user, user_d
     # Current API: GET /confirm-email redirects to frontend, confirmation is done via POST
     response = await client.post(f"/api/v1/user/confirm-email?token={token}")
     assert response.status_code == 200
-    assert response.json()["msg"] == "Email confirmed successfully"
+    assert response.json()["msg"] == "Почта успешно подтверждена"
 
 @pytest.mark.asyncio
 async def test_confirm_email_invalid_token(client):
@@ -159,7 +159,7 @@ async def test_change_username_success(client, auth_headers):
     new_username = "newusername"
     response = await client.post("/api/v1/user/change-username", json={"username": new_username}, headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["msg"] == "Username updated successfully"
+    assert response.json()["msg"] == "Имя пользователя обновлено"
 
 @pytest.mark.asyncio
 async def test_change_firstname_success(client, auth_headers):

@@ -107,7 +107,7 @@ async def test_checkout_empty_cart(client, auth_headers):
         headers=auth_headers
     )
     assert response.status_code == 400
-    assert "Cart is empty" in response.json()["detail"]
+    assert "Корзина пуста" in response.json()["detail"]
 
 @pytest.mark.asyncio
 async def test_cancel_order(client, auth_headers, catalog_data, db_session):
