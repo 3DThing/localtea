@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 import os
 import mimetypes
@@ -18,7 +19,16 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS обрабатывается в Nginx
+# CORS: на проде обрабатывается в Nginx.
+# Для локальной отладки без Nginx — когда установлена ENABLE_CORS=true
+if os.environ.get("ENABLE_CORS", "").lower() in ("true", "1", "yes"):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3001,http://127.0.0.1:3001").split(","),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 logger = logging.getLogger("uvicorn.error")
 

@@ -1,0 +1,182 @@
+# Docker Compose override for LOCAL WINDOWS DEBUGGING
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml up -d
+#   docker compose -f docker-compose.local.yml up -d db redis        # только БД и Redis
+#   docker compose -f docker-compose.local.yml up -d --build         # пересобрать образы
+#
+# Все сервисы настроены на localhost, без продакшн-URL и Linux-путей.
+# Volume uploads монтируется из локальной папки ./uploads вместо /var/www/localtea/uploads
+
+services:
+  backend:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini:ro
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./uploads:/app/uploads
+    env_file:
+      - .env.local
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - HONEYPOT_TELEGRAM_BOT_TOKEN=
+      - HONEYPOT_TELEGRAM_CHAT_ID=
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  admin_backend:
+    build:
+      context: .
+      dockerfile: admin_backend/Dockerfile
+    command: uvicorn admin_backend.main:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ./admin_backend:/app/admin_backend
+      - ./backend:/app/backend
+      - ./uploads:/app/uploads
+    env_file:
+      - .env.local
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - ENABLE_CORS=true
+      - CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      target: dev
+    command: celery -A backend.core.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./uploads:/app/uploads
+    env_file:
+      - .env.local
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  admin_frontend:
+    build:
+      context: ./admin_frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
+    stdin_open: true
+    tty: true
+    restart: "no"
+    develop:
+      watch:
+        - action: sync
+          path: ./admin_frontend/src
+          target: /app/src
+        - action: sync
+          path: ./admin_frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./admin_frontend/package.json
+
+  user_frontend:
+    build:
+      context: ./user_frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./local_dev_route.ts:/app/src/app/api/v1/[...path]/route.ts:ro
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_HONEYPOT_API=http://localhost:8000
+      - API_URL=http://backend:8000
+      - BACKEND_HOST_OVERRIDE=http://backend:8000
+    stdin_open: true
+    tty: true
+    restart: "no"
+    develop:
+      watch:
+        - action: sync
+          path: ./user_frontend/src
+          target: /app/src
+        - action: sync
+          path: ./user_frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./user_frontend/package.json
+
+  honeypot:
+    build:
+      context: ./honeypot
+    ports:
+      - "127.0.0.1:8002:8002"
+    environment:
+      - HONEYPOT_TELEGRAM_BOT_TOKEN=
+      - HONEYPOT_TELEGRAM_CHAT_ID=
+    restart: "no"
+
+  db:
+    image: postgres:15
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=localtea
+    volumes:
+      - pg_data_local:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_local
+    ports:
+      - "127.0.0.1:8003:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@localtea.ru
+      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_LISTEN_PORT=80
+    volumes:
+      - pgadmin_data_local:/var/lib/pgadmin
+    depends_on:
+      - db
+    restart: "no"
+
+volumes:
+  pg_data_local:
+  pgadmin_data_local:
