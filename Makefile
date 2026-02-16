@@ -30,6 +30,32 @@ db-backup:
 db-restore:
 	./scripts/db-restore.sh $(f) $(db)
 
+# Full backup (DB + uploads)
+.PHONY: fullbackup
+fullbackup:
+	python3 scripts/restore.py -fullbackup
+
+# Restore: make restore sql=path/to/dump file=path/to/archive
+.PHONY: restore
+restore:
+	python3 scripts/restore.py $(if $(sql),-sql $(sql)) $(if $(file),-file $(file))
+
+# Deploy (production)
+.PHONY: deploy
+deploy:
+	bash scripts/deploy.sh
+
+# Production: build & up
+.PHONY: prod-up prod-down prod-build
+prod-build:
+	docker compose -f docker-compose.prod.yml build --parallel
+
+prod-up:
+	docker compose -f docker-compose.prod.yml up -d
+
+prod-down:
+	docker compose -f docker-compose.prod.yml down
+
 # Create superuser
 create-superuser:
 	python3 scripts/create_superuser.py

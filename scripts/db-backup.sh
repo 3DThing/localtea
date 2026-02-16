@@ -4,7 +4,7 @@ set -euo pipefail
 # Usage: ./scripts/db-backup.sh [output_filename]
 # Default filename: backups/localtea-YYYYMMDD-HHMMSS.dump
 
-OUT_DIR="./backups"
+OUT_DIR="${OUT_DIR:-./backups}"
 mkdir -p "$OUT_DIR"
 
 TS=$(date +"%Y%m%d-%H%M%S")
