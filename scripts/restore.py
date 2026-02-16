@@ -109,12 +109,12 @@ def restore_sql(dump_path: Path) -> None:
     # copy dump into container
     _run(["docker", "cp", str(dump_path), f"{cid}:{container_tmp}"])
 
-    # pg_restore --clean --no-owner
+    # pg_restore --clean --if-exists --no-owner
     _run(
         _docker_compose(
             "exec", "-T", "db",
             "pg_restore", "-U", DB_USER, "-d", DB_NAME,
-            "--clean", "--no-owner", container_tmp,
+            "--clean", "--if-exists", "--no-owner", container_tmp,
         ),
         cwd=PROJECT_ROOT,
         check=False,  # pg_restore may return warnings (non-zero) even on success
@@ -158,7 +158,18 @@ def restore_files(archive_path: Path) -> None:
             extract_to = PROJECT_ROOT
         print(f"  ⚠  Каталог загрузок не найден, извлекаю в {extract_to}")
 
-    _run(["tar", "-xzf", str(archive_path), "-C", str(extract_to)])
+    tar_cmd = ["tar", "-xzf", str(archive_path), "-C", str(extract_to)]
+
+    # If extracting to a system path and we're not root, use sudo
+    needs_sudo = (
+        str(extract_to).startswith("/var/")
+        and os.geteuid() != 0
+    )
+    if needs_sudo:
+        print("  ℹ  Требуются права sudo для записи в системный каталог")
+        tar_cmd = ["sudo"] + tar_cmd
+
+    _run(tar_cmd, check=False)
 
     print(f"✅ Файлы извлечены в {extract_to}/uploads\n")
 
