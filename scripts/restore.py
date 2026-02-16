@@ -15,7 +15,10 @@
       -sql /root/LocalTea/backups/localtea-20260123-125952.dump \\
       -file /root/LocalTea/backups/uploads-20260123-130008.tar.gz
 
-  Полный бэкап (БД + загрузки -> backups/):
+  Восстановление Nginx конфигов:
+    python3 scripts/restore.py -nginx /root/LocalTea/backups/nginx-20260216-185151.tar.gz
+
+  Полный бэкап (БД + загрузки + nginx -> backups/):
     python3 scripts/restore.py -fullbackup
 """
 
@@ -43,6 +46,7 @@ UPLOAD_CANDIDATES: list[Path] = [
 
 DB_NAME = "localtea"
 DB_USER = "postgres"
+NGINX_DIR = Path("/etc/nginx")
 
 
 # ──────────────────────────── helpers ──────────────────────────────
@@ -174,6 +178,61 @@ def restore_files(archive_path: Path) -> None:
     print(f"✅ Файлы извлечены в {extract_to}/uploads\n")
 
 
+# ──────────────────────── restore: nginx ───────────────────────────
+
+def backup_nginx() -> Path | None:
+    """Backup /etc/nginx into backups/ as a tar.gz."""
+    if not NGINX_DIR.is_dir():
+        print("  ⚠  /etc/nginx не найден, пропускаю бэкап Nginx.")
+        return None
+
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    nginx_file = BACKUPS_DIR / f"nginx-{ts}.tar.gz"
+
+    tar_cmd = ["tar", "-czf", str(nginx_file), "-C", "/", "etc/nginx"]
+    if os.geteuid() != 0:
+        tar_cmd = ["sudo"] + tar_cmd
+
+    _run(tar_cmd)
+    print(f"  ✓ Бэкап Nginx: {nginx_file}")
+    return nginx_file
+
+
+def restore_nginx(archive_path: Path) -> None:
+    """Restore /etc/nginx from a tar.gz archive."""
+    if not archive_path.is_file():
+        print(f"ERROR: Архив не найден: {archive_path}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\n🌐 Восстановление Nginx из {archive_path}")
+
+    # Extract to / (archive contains etc/nginx/...)
+    tar_cmd = ["tar", "-xzf", str(archive_path), "-C", "/"]
+    if os.geteuid() != 0:
+        print("  ℹ  Требуются права sudo")
+        tar_cmd = ["sudo"] + tar_cmd
+
+    _run(tar_cmd, check=False)
+
+    # Test & reload nginx
+    nginx_test = ["nginx", "-t"]
+    nginx_reload = ["systemctl", "reload", "nginx"]
+    if os.geteuid() != 0:
+        nginx_test = ["sudo"] + nginx_test
+        nginx_reload = ["sudo"] + nginx_reload
+
+    print("  Проверка конфигурации...")
+    result = _run(nginx_test, check=False)
+    if result.returncode == 0:
+        print("  Перезагрузка nginx...")
+        _run(nginx_reload, check=False)
+        print("✅ Nginx восстановлен и перезагружен.\n")
+    else:
+        print("  ⚠  nginx -t обнаружил ошибки. Nginx НЕ перезагружен.", file=sys.stderr)
+        print("     Проверьте конфигурацию вручную: sudo nginx -t\n", file=sys.stderr)
+
+
 # ──────────────────────── full backup ──────────────────────────────
 
 def full_backup() -> None:
@@ -187,7 +246,7 @@ def full_backup() -> None:
     print("\n🗄  Полный бэкап")
 
     # ── 1. Database ────────────────────────────────────────────────
-    print(f"\n[1/2] Бэкап БД → {db_file}")
+    print(f"\n[1/3] Бэкап БД → {db_file}")
 
     cid = _get_db_container_id()
     container_tmp = f"/tmp/localtea-{ts}.dump"
@@ -207,7 +266,7 @@ def full_backup() -> None:
     print(f"  ✓ Дамп БД: {db_file}")
 
     # ── 2. Uploads ─────────────────────────────────────────────────
-    print(f"\n[2/2] Бэкап загрузок → {uploads_file}")
+    print(f"\n[2/3] Бэкап загрузок → {uploads_file}")
 
     uploads_dir = _find_uploads_dir()
     if uploads_dir is None:
@@ -221,17 +280,25 @@ def full_backup() -> None:
         ])
         print(f"  ✓ Архив загрузок: {uploads_file}")
 
+    # ── 3. Nginx ───────────────────────────────────────────────────
+    print(f"\n[3/3] Бэкап Nginx")
+    nginx_file = backup_nginx()
+
     # ── Summary ────────────────────────────────────────────────────
     print("\n" + "=" * 60)
     print("Бэкап завершён:")
     print(f"  БД:       {db_file}")
     if uploads_dir:
         print(f"  Загрузки: {uploads_file}")
+    if nginx_file:
+        print(f"  Nginx:    {nginx_file}")
     print()
     print("Для восстановления:")
     print(f"  python3 scripts/restore.py -sql {db_file}", end="")
     if uploads_dir:
         print(f" -file {uploads_file}", end="")
+    if nginx_file:
+        print(f" -nginx {nginx_file}", end="")
     print()
     print("=" * 60 + "\n")
 
@@ -257,14 +324,20 @@ def main() -> None:
         help="Путь до .tar.gz архива для восстановления загрузок",
     )
     parser.add_argument(
+        "-nginx",
+        metavar="PATH",
+        type=Path,
+        help="Путь до .tar.gz архива для восстановления Nginx конфигов",
+    )
+    parser.add_argument(
         "-fullbackup",
         action="store_true",
-        help="Создать полный бэкап (БД + загрузки) в backups/",
+        help="Создать полный бэкап (БД + загрузки + nginx) в backups/",
     )
 
     args = parser.parse_args()
 
-    if not (args.sql or args.file or args.fullbackup):
+    if not (args.sql or args.file or args.nginx or args.fullbackup):
         parser.print_help()
         sys.exit(1)
 
@@ -278,6 +351,9 @@ def main() -> None:
 
     if args.file:
         restore_files(args.file.resolve())
+
+    if args.nginx:
+        restore_nginx(args.nginx.resolve())
 
 
 if __name__ == "__main__":
