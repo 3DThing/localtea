@@ -45,6 +45,6 @@ if settings.ALLOWED_ORIGINS:
 app.include_router(api_router, prefix="/api/v1")
 
 # Serve uploaded files
-UPLOAD_DIR = "/app/uploads"
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

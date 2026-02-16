@@ -88,6 +88,7 @@ jobs:
           SMTP_USER: test@example.com
           SMTP_PASSWORD: test-password
           EMAILS_FROM_EMAIL: test@example.com
+          UPLOAD_DIR: /tmp/localtea-uploads
           TESTING: "1"
         run: |
           pytest tests/ -v --tb=short -q
