@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 import shutil
 import os
+import io
 
 class UserService:
     async def register_user(self, db: AsyncSession, user_in: user_schemas.UserCreate):
@@ -159,7 +160,12 @@ class UserService:
         if not user or not user.new_email_pending:
             raise HTTPException(status_code=404, detail="Недействительная ссылка подтверждения")
             
-        if user.email_confirm_expires_at < datetime.now(timezone.utc):
+        expires_at = user.email_confirm_expires_at
+        if expires_at is None:
+            raise HTTPException(status_code=400, detail="Срок действия ссылки истёк")
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Срок действия ссылки истёк")
             
         user.email = user.new_email_pending
@@ -243,6 +249,12 @@ class UserService:
         else:
             raise HTTPException(status_code=422, detail="Invalid filename")
         
+        # Проверяем размер файла (максимум 5 МБ)
+        MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 МБ
+        file_content = await file.read()
+        if len(file_content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 5 MB")
+        
         # Создаем папку для пользователя
         upload_dir = f"/app/uploads/user/{user.id}"
         os.makedirs(upload_dir, exist_ok=True)
@@ -253,8 +265,8 @@ class UserService:
         filepath = f"{upload_dir}/{filename}"
         
         try:
-            # Открываем изображение
-            img = Image.open(file.file)
+            # Открываем изображение из буфера (файл уже прочитан)
+            img = Image.open(io.BytesIO(file_content))
             
             # Конвертируем в RGB если необходимо
             if img.mode in ("RGBA", "P"):
@@ -314,9 +326,6 @@ class UserService:
             await db.delete(cart)
         
         # 2. Set orders user_id to NULL (keep order history)
-        await db.execute(
-            select(Order).where(Order.user_id == user.id)
-        )
         orders = (await db.execute(select(Order).where(Order.user_id == user.id))).scalars().all()
         for order in orders:
             order.user_id = None
