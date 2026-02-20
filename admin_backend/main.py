@@ -14,9 +14,9 @@ mimetypes.add_type("image/webp", ".webp")
 
 app = FastAPI(
     title="LocalTea Admin API",
-    openapi_url="/api/v1/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    openapi_url="/api/v1/openapi.json" if settings.DEBUG else None,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
 # CORS: на проде обрабатывается в Nginx.

@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"/api/v1/openapi.json",
+    openapi_url=f"/api/v1/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan
 )
 

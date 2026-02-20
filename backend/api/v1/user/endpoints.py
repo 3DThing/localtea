@@ -31,6 +31,8 @@ async def registration(
     return await user_service.register_user(db, user_in)
 
 @router.post("/login/access-token", response_model=token_schemas.Token)
+@limiter.limit("3/minute")
+@limiter.limit("20/hour")
 async def login_access_token(
     request: Request,
     response: Response,
@@ -206,12 +208,13 @@ async def refresh_token(
             raise HTTPException(status_code=403, detail="Invalid CSRF session")
     
     # Ensure expires_at is timezone-aware before comparison
+    expires_at = None
     if token_obj:
         expires_at = token_obj.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
 
-    if not token_obj or token_obj.revoked or expires_at < datetime.now(timezone.utc):
+    if not token_obj or token_obj.revoked or expires_at is None or expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
         
     # Fingerprint check
