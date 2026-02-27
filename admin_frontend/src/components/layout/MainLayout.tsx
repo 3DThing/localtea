@@ -14,6 +14,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('sidebar-collapsed');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time init from localStorage
       if (stored !== null) setCollapsed(JSON.parse(stored));
     } catch {}
   }, []);

@@ -1,25 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader, Center } from '@mantine/core';
 
+const emptySubscribe = () => () => {};
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
-  const [authorized, setAuthorized] = useState(false);
+  const hasToken = useSyncExternalStore(
+    emptySubscribe,
+    () => !!localStorage.getItem('accessToken'),
+    () => false,
+  );
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      setAuthorized(true);
-    } else {
+    if (!hasToken) {
       router.push('/login');
     }
-    setChecked(true);
-  }, [router]);
+  }, [hasToken, router]);
 
-  if (!checked || !authorized) {
+  if (!hasToken) {
     return (
       <Center h="100vh">
         <Loader />
