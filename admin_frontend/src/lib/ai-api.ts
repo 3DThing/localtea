@@ -70,13 +70,13 @@ export const sendManagerMessage = (id: number, content: string) =>
   aiApi.post(`/conversations/${id}/manager-message`, { content }).then(r => r.data);
 
 // RAG Documents
-export const getRAGDocuments = (params?: Record<string, any>) =>
+export const getRAGDocuments = (params?: Record<string, string | number>) =>
   aiApi.get('/rag', { params }).then(r => r.data);
 
-export const createRAGDocument = (data: any) =>
+export const createRAGDocument = (data: Record<string, string | undefined>) =>
   aiApi.post('/rag', data).then(r => r.data);
 
-export const updateRAGDocument = (id: number, data: any) =>
+export const updateRAGDocument = (id: number, data: Record<string, string | undefined>) =>
   aiApi.put(`/rag/${id}`, data).then(r => r.data);
 
 export const deleteRAGDocument = (id: number) =>
@@ -86,10 +86,10 @@ export const deleteRAGDocument = (id: number) =>
 export const getBannedPhrases = () =>
   aiApi.get('/banned-phrases').then(r => r.data);
 
-export const createBannedPhrase = (data: any) =>
+export const createBannedPhrase = (data: Record<string, string | boolean | undefined>) =>
   aiApi.post('/banned-phrases', data).then(r => r.data);
 
-export const updateBannedPhrase = (id: number, data: any) =>
+export const updateBannedPhrase = (id: number, data: Record<string, string | boolean | undefined>) =>
   aiApi.put(`/banned-phrases/${id}`, data).then(r => r.data);
 
 export const deleteBannedPhrase = (id: number) =>
@@ -117,7 +117,7 @@ export const createTelegramLink = (data: {
 }) =>
   aiApi.post('/telegram/links', data).then(r => r.data);
 
-export const updateTelegramLink = (id: number, data: Record<string, any>) =>
+export const updateTelegramLink = (id: number, data: Record<string, string | boolean>) =>
   aiApi.put(`/telegram/links/${id}`, data).then(r => r.data);
 
 export const deleteTelegramLink = (id: number) =>
