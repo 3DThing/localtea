@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Tabs, Title, Box, Group, ThemeIcon, Text } from '@mantine/core';
+import { Tabs, Title, Box, Group, ThemeIcon } from '@mantine/core';
 import { IconRobot, IconMessageCircle, IconSettings, IconBrain, IconShieldLock, IconChartBar, IconPalette } from '@tabler/icons-react';
 import { ConversationsTab } from './components/ConversationsTab';
 import { SettingsTab } from './components/SettingsTab';

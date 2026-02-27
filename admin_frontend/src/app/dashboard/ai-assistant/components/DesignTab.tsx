@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Paper, Text, Group, Stack, TextInput, Button, LoadingOverlay,
-  Select, Textarea, ColorInput, Box, Divider, Avatar, ActionIcon,
+  Select, Textarea, ColorInput, Box, Divider, Avatar,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { getSettings, updateSettingsBulk, uploadAssistantAvatar, deleteAssistantAvatar } from '@/lib/ai-api';
@@ -39,7 +39,7 @@ export function DesignTab() {
     (async () => {
       try {
         const data = await getSettings();
-        const mapped: any = { ...DEFAULTS };
+        const mapped: DesignSettings = { ...DEFAULTS };
         for (const s of data) {
           if (s.key in mapped) mapped[s.key] = s.value;
         }
@@ -76,8 +76,9 @@ export function DesignTab() {
       const result = await uploadAssistantAvatar(file);
       setSettings(s => ({ ...s, assistant_avatar_url: result.avatar_url }));
       notifications.show({ title: 'Аватарка загружена', color: 'teal' });
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (err as Record<string, any>)?.response?.data?.detail;
       const msg = typeof detail === 'string' ? detail : 'Не удалось загрузить аватарку';
       notifications.show({ title: 'Ошибка', message: msg, color: 'red' });
     } finally {

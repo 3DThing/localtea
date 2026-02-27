@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Paper, Text, Group, Stack, Badge, TextInput, Select, Button,
   LoadingOverlay, ScrollArea, ActionIcon, Tooltip, Box, Grid,
-  Textarea, Divider, Modal,
+  Textarea, Divider,
 } from '@mantine/core';
-import { IconSearch, IconRefresh, IconUser, IconRobot, IconUserCheck, IconX, IconSend, IconMessageCircle, IconTrash } from '@tabler/icons-react';
+import { IconSearch, IconRefresh, IconRobot, IconUserCheck, IconX, IconSend, IconMessageCircle, IconTrash } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import {
   getConversations, getConversation,
@@ -71,7 +71,7 @@ export function ConversationsTab() {
   const loadConversations = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string> = {};
       if (filterStatus) params.status = filterStatus;
       if (search) params.search = search;
       const data = await getConversations(params);
@@ -87,16 +87,17 @@ export function ConversationsTab() {
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
   // Polling for selected conversation
+  const selectedConvId = selectedConv?.id ?? null;
   useEffect(() => {
-    if (!selectedConv) return;
+    if (selectedConvId === null) return;
     const interval = setInterval(async () => {
       try {
-        const data = await getConversation(selectedConv.id);
+        const data = await getConversation(selectedConvId);
         setSelectedConv(data);
       } catch {}
     }, 5000);
     return () => clearInterval(interval);
-  }, [selectedConv?.id]);
+  }, [selectedConvId]);
 
   const selectConversation = async (id: number) => {
     setSelectedLoading(true);

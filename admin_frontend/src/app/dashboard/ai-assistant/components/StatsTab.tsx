@@ -28,7 +28,7 @@ interface Stats {
 }
 
 function StatCard({ icon: Icon, label, value, color }: {
-  icon: any; label: string; value: string | number; color: string;
+  icon: React.ComponentType<{ size?: number | string }>; label: string; value: string | number; color: string;
 }) {
   return (
     <Paper withBorder p="md" radius="md">

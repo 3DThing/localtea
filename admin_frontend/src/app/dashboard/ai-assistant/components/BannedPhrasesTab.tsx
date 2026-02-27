@@ -82,8 +82,9 @@ export function BannedPhrasesTab() {
       close();
       loadPhrases();
       notifications.show({ title: 'Сохранено', color: 'teal' });
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (err as Record<string, any>)?.response?.data?.detail;
       const msg = typeof detail === 'string' ? detail : 'Не удалось сохранить';
       notifications.show({ title: 'Ошибка', message: msg, color: 'red' });
     } finally {

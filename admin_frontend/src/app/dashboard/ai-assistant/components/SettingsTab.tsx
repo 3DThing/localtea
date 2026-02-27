@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Paper, Text, Group, Stack, Switch, TextInput, Button, LoadingOverlay, Textarea, Box,
-  Table, ActionIcon, Badge, Modal, Select, Tooltip,
+  Table, Badge, Modal, Select, Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -13,8 +13,10 @@ import {
 } from '@/lib/ai-api';
 
 /** Safely extract a string error message from an Axios error. */
-const apiErr = (err: any, fallback = 'Ошибка') => {
-  const detail = err?.response?.data?.detail;
+const apiErr = (err: unknown, fallback = 'Ошибка') => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const axErr = err as Record<string, any>;
+  const detail = axErr?.response?.data?.detail;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const first = detail[0];
@@ -125,7 +127,7 @@ export function SettingsTab() {
 
   // Telegram settings (global: enabled, bot_token)
   const [telegramSettings, setTelegramSettings] = useState<Setting[]>([]);
-  const [testingTg, setTestingTg] = useState(false);
+  const [, setTestingTg] = useState(false);
 
   // Telegram links (per-admin)
   const [tgLinks, setTgLinks] = useState<TgLink[]>([]);
@@ -150,7 +152,7 @@ export function SettingsTab() {
     getTelegramLinks().then(setTgLinks).catch(() => {});
   };
 
-  const handleTestTelegram = async () => {
+  const handleTestTelegram = useCallback(async () => {
     setTestingTg(true);
     try {
       const tokenKey = 'telegram_bot_token';
@@ -158,13 +160,13 @@ export function SettingsTab() {
       
       const result = await testTelegram();
       notifications.show({ title: 'Успешно', message: result.message, color: 'teal' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg = apiErr(err, 'Не удалось отправить тестовое сообщение');
       notifications.show({ title: 'Ошибка', message: msg, color: 'red' });
     } finally {
       setTestingTg(false);
     }
-  };
+  }, [editValues]);
 
   const handleAddLink = async () => {
     if (!newLink.admin_user_id || !newLink.telegram_chat_id) return;
@@ -179,7 +181,7 @@ export function SettingsTab() {
       setAddLinkOpen(false);
       setNewLink({ admin_user_id: '', telegram_chat_id: '', telegram_username: '' });
       loadTgLinks();
-    } catch (err: any) {
+    } catch (err: unknown) {
       notifications.show({ title: 'Ошибка', message: apiErr(err, 'Добавление не удалось'), color: 'red' });
     } finally {
       setAddingLink(false);
@@ -210,7 +212,7 @@ export function SettingsTab() {
     try {
       const result = await testTelegramLink(linkId);
       notifications.show({ title: 'Успешно', message: result.message, color: 'teal' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       notifications.show({ title: 'Ошибка', message: apiErr(err), color: 'red' });
     } finally {
       setTestingLinkId(null);
@@ -408,6 +410,9 @@ export function SettingsTab() {
                 </Button>
               </Group>
             ))}
+            <Button size="xs" variant="outline" onClick={handleTestTelegram}>
+              Тест бота
+            </Button>
           </Stack>
         </Paper>
 

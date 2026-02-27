@@ -48,7 +48,7 @@ export const updateSettingsBulk = (settings: Record<string, string>) =>
   aiApi.put('/settings', { settings }).then(r => r.data);
 
 // Conversations
-export const getConversations = (params?: Record<string, any>) =>
+export const getConversations = (params?: Record<string, string>) =>
   aiApi.get('/conversations', { params }).then(r => r.data);
 
 export const getConversation = (id: number) =>
