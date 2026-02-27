@@ -161,6 +161,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://api.localtea.ru
             NEXT_PUBLIC_HONEYPOT_API=https://api.localtea.ru
+            NEXT_PUBLIC_AI_ASSISTANT_URL=https://api.localtea.ru/ai/api/v1
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

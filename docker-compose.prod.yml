@@ -88,6 +88,7 @@ services:
       args:
         - NEXT_PUBLIC_API_URL=${USER_API_URL:-https://api.localtea.ru}
         - NEXT_PUBLIC_HONEYPOT_API=${HONEYPOT_API_URL:-https://api.localtea.ru}
+        - NEXT_PUBLIC_AI_ASSISTANT_URL=${AI_USER_API_URL:-https://api.localtea.ru/ai/api/v1}
     ports:
       - "127.0.0.1:3000:3000"
     environment:
