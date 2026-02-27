@@ -89,6 +89,7 @@ services:
       - NEXT_PUBLIC_API_URL=https://api.localtea.ru
       - NEXT_PUBLIC_HONEYPOT_API=https://api.localtea.ru
       - API_URL=http://backend:8000
+      - AI_ASSISTANT_URL=http://ai_assistant:8004
     restart: unless-stopped
 
   honeypot:
@@ -99,6 +100,31 @@ services:
     environment:
       - HONEYPOT_TELEGRAM_BOT_TOKEN=${HONEYPOT_TELEGRAM_BOT_TOKEN:-}
       - HONEYPOT_TELEGRAM_CHAT_ID=${HONEYPOT_TELEGRAM_CHAT_ID:-}
+    restart: unless-stopped
+
+  ai_assistant:
+    build:
+      context: .
+      dockerfile: ai_assistant/Dockerfile
+    ports:
+      - "127.0.0.1:8004:8004"
+    volumes:
+      - ./ai_assistant:/app/ai_assistant
+      - ./backend:/app/backend
+      - ./admin_backend:/app/admin_backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - ENABLE_CORS=false
+    depends_on:
+      - db
+      - redis
     restart: unless-stopped
 
   db:

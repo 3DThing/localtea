@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic[email]
+pydantic-settings
+python-jose[cryptography]>=3.4.0
+asyncpg
+alembic
+httpx
+email-validator
+# from backend (imported transitively)
+passlib[argon2]
+python-multipart
+jinja2
+bleach>=6.0.0
+redis
+Pillow>=10.3.0

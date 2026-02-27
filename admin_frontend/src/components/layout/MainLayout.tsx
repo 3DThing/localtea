@@ -1,18 +1,30 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { AppShell } from '@mantine/core';
-import { useDisclosure, useLocalStorage } from '@mantine/hooks';
+import { useDisclosure } from '@mantine/hooks';
 import { AppHeader } from './AppHeader';
 import { AppSidebar } from './AppSidebar';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
-  const [collapsed, setCollapsed] = useLocalStorage({
-    key: 'sidebar-collapsed',
-    defaultValue: false,
-  });
+  const [collapsed, setCollapsed] = useState(false);
 
-  const toggleCollapsed = () => setCollapsed((c) => !c);
+  // Read localStorage only after mount to avoid hydration mismatch
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('sidebar-collapsed');
+      if (stored !== null) setCollapsed(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem('sidebar-collapsed', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   return (
     <AppShell

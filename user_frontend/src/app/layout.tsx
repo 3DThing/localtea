@@ -9,6 +9,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { NotificationsContainer } from '@/components/NotificationsContainer';
 import { CookieConsentBanner } from '@/components/CookieConsentBanner';
+import { ChatWidget } from '@/components/ChatWidget';
 
 // Feature flags
 const ENABLE_TIMEWEB_AI_AGENT = false;
@@ -46,6 +47,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <ChatWidget />
         </Providers>
         {ENABLE_TIMEWEB_AI_AGENT && (
           <Script

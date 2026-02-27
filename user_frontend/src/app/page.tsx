@@ -60,7 +60,7 @@
                 style={{
                 position: 'absolute',
                 inset: 0,
-                backgroundImage: 'url(/Valentin-hero.png)',
+                backgroundImage: 'url(/spring_hero.jpg)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 }}
@@ -75,23 +75,7 @@
               
               <Container size="xl" style={{ position: 'relative', zIndex: 1 }}>
                 <Stack gap="xl" align="center" ta="center">
-                <Badge 
-                  size="lg" 
-                  variant="filled"
-                  style={{ 
-                  animation: 'float 3s ease-in-out infinite',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-                  padding: '12px 24px',
-                  fontWeight: 500,
-                  background: 'linear-gradient(135deg, rgba(200, 140, 70, 0.95) 0%, rgba(160, 100, 50, 1) 100%)',
-                  border: '1px solid rgba(255, 200, 120, 0.4)',
-                  }}
-                >
-                  <Group gap="xs">
-                  <IconSparkles size={14} style={{ color: '#ffd700' }} />
-                  Весенняя коллекция 2026 ^_^
-                  </Group>
-                </Badge>
+
 
                 <Title
                   order={1}
@@ -105,7 +89,7 @@
                   letterSpacing: '2px',
                   }}
                 >
-                  Любовь<br />в каждой чашке
+                  Весна<br />в каждой чашке
                 </Title>
 
                 <Text 

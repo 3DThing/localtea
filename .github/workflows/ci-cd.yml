@@ -172,6 +172,7 @@ jobs:
           push: false
           build-args: |
             NEXT_PUBLIC_API_URL=https://apiadmin.localtea.ru/api/v1
+            NEXT_PUBLIC_AI_API_URL=https://apiadmin.localtea.ru/ai/api/v1/admin/assistant
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

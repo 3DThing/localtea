@@ -17,6 +17,7 @@ import {
   IconReceiptRefund,
   IconChartBar,
   IconCash,
+  IconRobot,
 } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -32,6 +33,7 @@ const data = [
   { link: '/dashboard/moderation', label: 'Модерация', icon: IconShield },
   { link: '/dashboard/refunds', label: 'Возвраты', icon: IconReceiptRefund },
   { link: '/dashboard/analytics', label: 'Аналитика', icon: IconChartBar },
+  { link: '/dashboard/ai-assistant', label: 'AI Ассистент', icon: IconRobot },
 ];
 
 interface AppSidebarProps {

@@ -89,6 +89,7 @@ services:
       - "127.0.0.1:3001:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
+      - NEXT_PUBLIC_AI_API_URL=http://localhost:8004/api/v1/admin/assistant
     stdin_open: true
     tty: true
     restart: "no"
@@ -116,6 +117,8 @@ services:
       - NEXT_PUBLIC_HONEYPOT_API=http://localhost:8000
       - API_URL=http://backend:8000
       - BACKEND_HOST_OVERRIDE=http://backend:8000
+      - AI_ASSISTANT_URL=http://ai_assistant:8004
+      - NEXT_PUBLIC_AI_ASSISTANT_URL=http://localhost:8004/api/v1
     stdin_open: true
     tty: true
     restart: "no"
@@ -138,6 +141,36 @@ services:
     environment:
       - HONEYPOT_TELEGRAM_BOT_TOKEN=
       - HONEYPOT_TELEGRAM_CHAT_ID=
+    restart: "no"
+
+  ai_assistant:
+    build:
+      context: .
+      dockerfile: ai_assistant/Dockerfile
+    ports:
+      - "127.0.0.1:8004:8004"
+    volumes:
+      - ./ai_assistant:/app/ai_assistant
+      - ./backend:/app/backend
+      - ./admin_backend:/app/admin_backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./uploads:/app/uploads
+    env_file:
+      - .env.local
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - ENABLE_CORS=true
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001
+      - UPLOADS_BASE_URL=http://localhost:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: "no"
 
   db:
